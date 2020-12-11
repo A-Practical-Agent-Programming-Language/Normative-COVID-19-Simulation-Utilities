@@ -8,7 +8,7 @@ from classes.execution.CodeExecution import CodeExecution
 
 class DiseaseCalibration(CodeExecution):
 	regex = r"^(\w+\.base)\s*=\s*([0-9\.]+)$"
-	rundirectory_template = ["scaling", "{ncounties}counties-fips-{fips}", "{scale}scale-run{run}-{liberal}l-{conservative}c"]
+	rundirectory_template = ["disease", "{ncounties}counties-fips-{fips}", "{scale}scale-run{run}-{liberal}l-{conservative}c"]
 	progress_format = "[DISEASE] [{time}] {ncounties} counties ({fips}): {score} for scale factor {x[0]} seeding x[2] agents for x[1] days in disease calibration (dir={output_dir})"
 	csv_log = os.path.join("output", "calibration.disease.csv")
 
