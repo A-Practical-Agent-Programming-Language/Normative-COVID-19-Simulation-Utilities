@@ -217,8 +217,6 @@ def test_code_available(java_location):
 		raise click.exceptions.BadArgumentUsage(
 			f"PanSim was not found. Please install PanSim before attempting calibration")
 
+start.add_command(behavior)
+start.add_command(disease)
 
-if __name__ == "__main__":
-	start.add_command(behavior)
-	start.add_command(disease)
-	start()
