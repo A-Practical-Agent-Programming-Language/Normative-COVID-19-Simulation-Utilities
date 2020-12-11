@@ -3,7 +3,7 @@ import os
 import subprocess
 from math import sqrt
 from typing import List, Dict, Any
-from scipy.optimize import minimize
+from sklearn.metrics import mean_squared_error
 
 
 class Gyration(object):

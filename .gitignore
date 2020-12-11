@@ -147,8 +147,8 @@ logging.properties
 
 # Request for sharing
 va_county_mobility_index.csv
-gyration_radius_calculator.py
-calculate_mobility_index.py
+#gyration_radius_calculator.py
+#calculate_mobility_index.py
 
 # PyCharm
 .idea/

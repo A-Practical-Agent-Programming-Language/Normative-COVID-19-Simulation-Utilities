@@ -1,7 +1,7 @@
 import os
+import random
 import subprocess
 import sys
-import random
 import time
 from abc import abstractmethod
 from datetime import datetime
@@ -13,7 +13,7 @@ class CodeExecution(object):
 
 	"""Overridable members"""
 	rundirectory_template = ["behavior", "{ncounties}counties-fips-{fips}", "{liberal}l-{conservative}c-run{run}"]  # TODO how to deal with multiple counties
-	progress_format = "[BEHAVIOR: {time}] {ncounties} counties ({county['fips']}): {score} for government attitudes liberal={x[0]}, conservative={x[1]} (dir={output_dir})"
+	progress_format = "[BEHAVIOR: {time}] {ncounties} counties ({fips}): {score} for government attitudes liberal={x[0]}, conservative={x[1]} (dir={output_dir})"
 	target_file = ""
 
 	def __init__(self, county_configuration_file, sim2apl_jar, counties, disease_model_file, n_cpus=1, java_home="java", java_threads=1, java_heap_size_max="64g", java_heap_size_initial="55g", output_dir=None, mode_liberal=0.5, mode_conservative=0.5, n_runs=10, epicurve_file="epicurve.csv"):
@@ -58,7 +58,7 @@ class CodeExecution(object):
 		for conf in self.counties.values():
 			locations.extend(conf["activities"] if not "locations" in conf else conf["locations"])
 		if not os.path.exists(lid_partition) or not os.path.exists(pid_partition):
-			os.makedirs(os.path.join('.persistent', dir_name))
+			os.makedirs(os.path.join('.persistent', dir_name), exist_ok=True)
 			subprocess.run(locations)
 		return lid_partition, pid_partition
 
@@ -79,22 +79,20 @@ class CodeExecution(object):
 		for i in range(self.n_runs):
 			self.run_configuration["run"] = i
 
+			# AgentState().scramble_state("shuffled_start_state.csv")
+			self.prepare_simulation_run(x)
+
 			if not os.path.exists(self.get_target_file()):
 				print("Starting run ", self.run_configuration["run"], "See tail -f calibration.run.log for progress")
-
-				# AgentState().scramble_state("shuffled_start_state.csv")
-				self.prepare_simulation_run(x)
 				self.set_pansim_parameters()
-
 				self.start_run()
-
-				print("Calculating loss for " + self.get_target_file())
-				scores.append(self.score_simulation_run(x))
-
 			else:
 				print(
 					"\nRun", self.run_configuration["run"],
 					"already took place; skipping. Delete the directory for that run if it needs to be calculated again")
+
+			print("Calculating loss for " + self.get_target_file())
+			scores.append(self.score_simulation_run(x))
 
 		return self._process_loss(x, scores)
 
@@ -114,6 +112,7 @@ class CodeExecution(object):
 		with open(os.path.join("output", "calibration.results.log"), "a") as fout:
 			fout.write(self.progress_format.format(**args))
 
+		self._write_csv_log(loss)
 		return loss
 
 	def set_pansim_parameters(self):
@@ -148,6 +147,10 @@ class CodeExecution(object):
 		"""Change pansim arguments if distributed version (distsim) should be used"""
 		return ["time", "mpiexec", "--mca", "mpi_yield_when_idle", "1", "-n", str(N_CPUS), "pansim", "distsim"]
 
+	@abstractmethod
+	def _write_csv_log(self, score):
+		pass
+
 	def start_run(self):
 		"""
 		Runs and monitors one iteration of the integrated simulation
@@ -175,4 +178,8 @@ class CodeExecution(object):
 			self.java_home, f"-Xmx{self.max_heap_size}", f"-Xms{self.initial_heap_size}", "-jar", self.sim2apl_jar, "--config", self.county_configuration_file,
 			"--mode-liberal", str(self.mode_liberal), "--mode-conservative", str(self.mode_conservative), "-t", str(self.java_threads), "-c",
 			"--output", self.get_base_directory()
-		]
+		] + self.get_extra_java_commands()
+
+	def get_extra_java_commands(self):
+		"""Allows implementing sub-classes to specify additional parameters for the Java behavior model"""
+		return []
