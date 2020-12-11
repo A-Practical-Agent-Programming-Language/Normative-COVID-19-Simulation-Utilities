@@ -8,12 +8,13 @@ from sklearn.metrics import mean_squared_error
 
 class Gyration(object):
 
-	def __init__(self, va_gyration_mobility_index_file: str, tick_averages_file_name: str, counties: [Dict[str, Dict[str, Any]]]) -> None:
+	def __init__(self, va_gyration_mobility_index_file: str, tick_averages_file_name: str, counties: [Dict[str, Dict[str, Any]]], sliding_window_size: int) -> None:
 		self.__day_average_file_template = os.path.join('.persistent', 'day-averages', 'day-averages-{0}.csv')
 		self._va_gyration_mobility_index_file = va_gyration_mobility_index_file
 		self._baseline_mobility_index = self._load_baseline_mobility_index()
 		self._tick_averages_file_name = tick_averages_file_name
 		self.__day_baselines = dict()
+		self.sliding_window_size = sliding_window_size
 
 		for county in counties.values():
 			try:
@@ -126,11 +127,11 @@ class Gyration(object):
 	@staticmethod
 	def _write_tick_averages_to_run_directory(fips_codes: List[int], overview: Dict[str, Dict[int, Dict[str, float]]], run_directory: str) -> None:
 		with open(os.path.join(run_directory, "mobility_index.csv"), 'w') as out:
-			out.write(",".join(["date"] + sorted(list(map(lambda x: str(x), fips_codes))*2)))
-			out.write(",".join(["\n"] + [x for _ in fips_codes for x in ["real", "agents", "agent_radiusKM"]]) + "\n")
+			out.write(",".join(["date"] + sorted(list(map(lambda x: str(x), fips_codes))*5)))
+			out.write(",".join(["\n"] + [x for _ in fips_codes for x in ["real", "agents", "real_unsmoothed", "agents_unsmoothed", "agent_radiusKM"]]) + "\n")
 
 			for d in sorted(overview.keys()):
-				line_values = [d] + [str(overview[d][fips][x]) for fips in fips_codes for x in ["real", "agents", "agent_radius"]]
+				line_values = [d] + [str(overview[d][fips][x]) for fips in fips_codes for x in ["real", "agents", "real_unsmoothed", "agents_unsmoothed", "agent_radius"]]
 				out.write(",".join(line_values) + "\n")
 
 	@staticmethod
@@ -144,19 +145,34 @@ class Gyration(object):
 
 		for fips in tick_averages.keys():
 			day_baseline = self._get_baseline_for_county(fips)
+			dates = sorted(tick_averages[fips].keys())
 
-			for date in sorted(tick_averages[fips].keys()):
+			for i, date in enumerate(dates):
 				if date not in mobility_index_overview:
 					mobility_index_overview[date] = dict()
 				dayofweek = datetime.date(*list(map(lambda x: int(x), date.split("-")))).weekday()
 				percent_reduction = (tick_averages[fips][date] - day_baseline[dayofweek]) / day_baseline[dayofweek] * 100.0
-				mobility_index_overview[date][fips] = dict(real="", agents=percent_reduction, agent_radius=tick_averages[fips][date])
-				if date in self._baseline_mobility_index[fips]:
-					mobility_index_overview[date][fips]["real"] = self._baseline_mobility_index[fips][date]
-					pct_reduction_predicted.append(percent_reduction)
-					pct_reduction_target.append(self._baseline_mobility_index[fips][date])
+
+				mobility_index_overview[date][fips] = dict(real="", agents="", real_unsmoothed="", agents_unsmoothed=percent_reduction, agent_radius=tick_averages[fips][date])
+
+				date_in_baseline = date in self._baseline_mobility_index[fips]
+				if date_in_baseline:
+					mobility_index_overview[date][fips]["real_unsmoothed"] = self._baseline_mobility_index[fips][date]
 				else:
 					print("Missing date {0} for county FIPS {1} in va_baseline".format(date, fips))
+
+				if i >= self.sliding_window_size - 1:
+					smooth_dates = [dates[x] for x in range(i + 1 - self.sliding_window_size, i+1)]
+					smooth_agent_gyration_window = [mobility_index_overview[x][fips]["agents_unsmoothed"] for x in smooth_dates]
+					smooth_agent_gyration = sum(smooth_agent_gyration_window) / len(smooth_agent_gyration_window)
+					mobility_index_overview[date][fips]["agents"] = smooth_agent_gyration
+					if date_in_baseline:
+						smooth_real_gyration_window = list(filter(lambda x: x != "", [mobility_index_overview[x][fips]["real_unsmoothed"] for x in smooth_dates]))
+						smooth_real_gyration = sum(smooth_real_gyration_window) / len(smooth_real_gyration_window)
+						mobility_index_overview[date][fips]["real"] = smooth_real_gyration
+
+						pct_reduction_predicted.append(smooth_agent_gyration)
+						pct_reduction_target.append(smooth_real_gyration)
 
 		return pct_reduction_predicted, pct_reduction_target, mobility_index_overview
 
