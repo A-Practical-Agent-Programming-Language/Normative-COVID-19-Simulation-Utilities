@@ -14,6 +14,8 @@ from classes.Gyration import Gyration
 
 # TODO
 #  - Move all generated files not directly relevant for user to another subdir, to avoid clutter
+from classes.execution.RepeatedExecution import RepeatedExecution
+
 
 @click.group()
 @click.option('--county-configuration', '-c', type=click.Path(exists=True, dir_okay=True, file_okay=True, resolve_path=True),
@@ -162,6 +164,22 @@ def disease(ctx, mode_liberal, mode_conservative):
 
 	calibrate(dc.calibrate, initial_simplex)
 
+
+@start.command(name="simplerepeat", help="Run the experiment n_runs number of times with a fixed disease model and behavior parameters, and exit after finishing")
+@click.option('--mode-liberal', '-ml', default=0.2,
+              help="Specify the mode of the government trust factor for the liberal voting agents")
+@click.option('--mode-conservative', '-mc', default=0.2,
+              help="Specify the mode of the government trust factor for the liberal voting agents")
+@click.pass_context
+def simplerepeat(ctx, mode_liberal, mode_conservative):
+	click.echo("Running experiment {0} times with liberal={1},conservative={2}")
+	args = ctx.obj["args"]
+	args["mode_liberal"] = mode_liberal
+	args["mode_conservative"] = mode_conservative
+
+	re = RepeatedExecution(**args)
+
+	calibrate(re.calibrate(None))
 
 def calibrate(fitness_function, initial_simplex):
 	options = {'xatol': 0.1, 'disp': True, "initial_simplex": initial_simplex}
