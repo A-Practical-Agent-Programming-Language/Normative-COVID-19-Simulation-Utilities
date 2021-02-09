@@ -9,7 +9,7 @@ from classes.execution.CodeExecution import CodeExecution
 class DiseaseCalibration(CodeExecution):
 	regex = r"^(\w+\.base)\s*=\s*([0-9\.]+)$"
 	rundirectory_template = ["disease", "{ncounties}counties-fips-{fips}", "{scale}scale-run{run}-{liberal}l-{conservative}c"]
-	progress_format = "[DISEASE] [{time}] {ncounties} counties ({fips}): {score} for scale factor {x[0]} seeding x[2] agents for x[1] days in disease calibration (dir={output_dir})"
+	progress_format = "[DISEASE] [{time}] {ncounties} counties ({fips}): {score} for scale factor {x[0]} seeding x[2] agents for x[1] days in disease calibration (dir={output_dir})\n"
 	csv_log = os.path.join("output", "calibration.disease.csv")
 
 	def __init__(self, *args, **kwargs):
@@ -24,7 +24,7 @@ class DiseaseCalibration(CodeExecution):
 		exists = os.path.exists(self.csv_log)
 		if not exists:
 			with open(self.csv_log, "a") as fout:
-				fout.write("score,scale,n_days,n_agents_per_day,time_finished,calibration_start_time\n")
+				fout.write("fips,#counties,score,scale,n_days,n_agents_per_day,time_finished,calibration_start_time\n")
 
 	def calibrate(self, x):
 		if x[1] < 0 or x[2] < 0:
@@ -54,8 +54,19 @@ class DiseaseCalibration(CodeExecution):
 						fout.write(line)
 
 	def get_extra_java_commands(self):
-		return ["--disease-seed-days", str(self.run_configuration["days-seeding"]), "--disease-seed-number", str(self.run_configuration["agents-per-day-seeding"])]
+		return [
+			"--disease-seed-days",
+			str(self.run_configuration["days-seeding"]),
+			"--disease-seed-number",
+			str(self.run_configuration["agents-per-day-seeding"])
+		]
 
 	def _write_csv_log(self, score):
 		with open(self.csv_log, 'a') as fout:
-			fout.write("{score},{scale},{days-seeding},{agents-per-day-seeding},{finished_time},{starttime}\n".format(score=score,finished_time=datetime.now().strftime("%Y-%m-%d_%H:%M:%S"), starttime=self.start_time, **self.run_configuration))
+			fout.write(
+				"{fips},{ncounties},{score},{scale},{days-seeding},{agents-per-day-seeding},{finished_time},{starttime}\n".format(
+					score=score,
+					finished_time=datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
+					starttime=self.start_time.strftime("%Y-%m-%dT%H:%M:%S"),
+					**self.run_configuration)
+			)

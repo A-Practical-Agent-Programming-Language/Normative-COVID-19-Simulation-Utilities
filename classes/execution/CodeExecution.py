@@ -12,8 +12,8 @@ class CodeExecution(object):
 	pansim_shell = ["time", "pansim", "simplesim"]
 
 	"""Overridable members"""
-	rundirectory_template = ["behavior", "{ncounties}counties-fips-{fips}", "{liberal}l-{conservative}c-run{run}"]  # TODO how to deal with multiple counties
-	progress_format = "[BEHAVIOR: {time}] {ncounties} counties ({fips}): {score} for government attitudes liberal={x[0]}, conservative={x[1]} (dir={output_dir})"
+	rundirectory_template = ["behavior", "{ncounties}counties-fips-{fips}", "{liberal}l-{conservative}c-run{run}"]
+	progress_format = "[BEHAVIOR: {time}] {ncounties} counties ({fips}): {score} for government attitudes liberal={x[0]}, conservative={x[1]} (dir={output_dir})\n"
 	target_file = ""
 
 	def __init__(self, county_configuration_file, sim2apl_jar, counties, disease_model_file, n_cpus=1, java_home="java", java_threads=1, java_heap_size_max="64g", java_heap_size_initial="55g", output_dir=None, mode_liberal=0.5, mode_conservative=0.5, n_runs=10, epicurve_file="epicurve.csv"):
@@ -46,7 +46,7 @@ class CodeExecution(object):
 			ncounties=len(counties)
 		)
 		self.lid_partition, self.pid_partition = self.get_partitions()
-		self.start_time = datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
+		self.start_time = datetime.now()
 
 
 	def get_partitions(self) -> (str, str):
@@ -75,9 +75,11 @@ class CodeExecution(object):
 		scores = list()
 		self.store_fitness_guess(x)
 		print("Finding loss for ", x)
+		self.start_batch_time = datetime.now()
 
 		for i in range(self.n_runs):
 			self.run_configuration["run"] = i
+			self.start_run_time = datetime.now()
 
 			# AgentState().scramble_state("shuffled_start_state.csv")
 			self.prepare_simulation_run(x)
@@ -116,7 +118,13 @@ class CodeExecution(object):
 		return loss
 
 	def set_pansim_parameters(self):
+		home = os.environ["HOME"]
+		path = os.environ["PATH"]
+		os.environ.clear()
+		os.environ["HOME"] = home
+		os.environ["PATH"] = path
 		os.environ["XACTOR_MAX_SEND_BUFFERS"] = str(4 * self.n_cpus)
+		os.environ["XACTOR_MAX_MESSAGE_SIZE"] = str(33554432)
 		os.environ["OUTPUT_FILE"] = self.get_base_directory(self.epicurve_filename)
 		os.environ["SEED"] = str(random.randrange(sys.maxsize))
 		os.environ["DISEASE_MODEL_FILE"] = self.disease_model_file
@@ -165,7 +173,7 @@ class CodeExecution(object):
 
 	def _start_java_background_process(self):
 		"""Executes the Java 2APL behavior model in the background"""
-		agentrun_log = os.path.join("output", f"calibration.agents.{self.start_time}.run.log")
+		agentrun_log = os.path.join("output", f"calibration.agents.{self.start_time.strftime('%Y_%m_%dT%H_%M_%S')}.run.log")
 		with open(agentrun_log, "a") as logfile:
 			return subprocess.Popen(self._java_command(), stdout=logfile, stderr=logfile)
 

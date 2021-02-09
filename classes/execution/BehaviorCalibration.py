@@ -17,7 +17,7 @@ class BehaviorCalibration(CodeExecution):
 		exists = os.path.exists(self.csv_log)
 		if not exists:
 			with open(self.csv_log, "a") as fout:
-				fout.write("score,liberal,conservative,time_finished,calibration_start_time\n")
+				fout.write("fips,#counties,score,liberal,conservative,time_finished,calibration_start_time\n")
 
 	def calibrate(self, x):
 		if x[0] < 0 or x[0] > 1 or x[1] < 0 or x[1] > 1:
@@ -38,4 +38,9 @@ class BehaviorCalibration(CodeExecution):
 
 	def _write_csv_log(self, score):
 		with open(self.csv_log, 'a') as fout:
-			fout.write("{score},{liberal},{conservative},{finished_time},{starttime}\n".format(score=score, finished_time=datetime.now().strftime("%Y-%m-%d_%H:%M:%S"), starttime=self.start_time, **self.run_configuration))
+			fout.write("{fips},{ncounties},{score},{liberal},{conservative},{finished_time},{starttime}\n".format(
+				score=score,
+				finished_time=datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
+				starttime=self.start_time.strftime("%Y-%m-%dT%H:%M:%S"),
+				**self.run_configuration)
+			)

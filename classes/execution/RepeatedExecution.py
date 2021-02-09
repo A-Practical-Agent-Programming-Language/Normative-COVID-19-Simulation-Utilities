@@ -4,8 +4,7 @@ from classes.execution.CodeExecution import CodeExecution
 class RepeatedExecution(CodeExecution):
 	"""A simple class to repeatedly run an experiment with the same set of parameters a number of times"""
 
-	rundirectory_template = ["repeat", "{ncounties}counties-fips-{fips}",
-	                         "{liberal}l-{conservative}c-run{run}"]  # TODO how to deal with multiple counties
+	rundirectory_template = ["repeat", "{ncounties}counties-fips-{fips}", "{liberal}l-{conservative}c-run{run}"]
 
 	def __init__(self,  *args, **kwargs):
 		super(RepeatedExecution, self).__init__(*args, **kwargs)
