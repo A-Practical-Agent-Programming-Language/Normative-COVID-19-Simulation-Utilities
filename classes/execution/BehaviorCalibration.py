@@ -26,8 +26,11 @@ class BehaviorCalibration(CodeExecution):
 			return super(BehaviorCalibration, self).calibrate(x)
 
 	def store_fitness_guess(self, x):
-		self.run_configuration["liberal"] = x[0]
-		self.run_configuration["conservative"] = x[1]
+		self.mode_liberal = x[0]
+		self.mode_conservative = x[1]
+		self.run_configuration["liberal"] = self.mode_liberal
+		self.run_configuration["conservative"] = self.mode_conservative
+
 
 	def prepare_simulation_run(self, x):
 		"""Nothing to be done here"""
