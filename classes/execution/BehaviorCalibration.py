@@ -28,9 +28,12 @@ class BehaviorCalibration(CodeExecution):
 	def store_fitness_guess(self, x):
 		self.mode_liberal = x[0]
 		self.mode_conservative = x[1]
+		self.fatigue = x[2]
+		self.fatigue_start = x[3]
 		self.run_configuration["liberal"] = self.mode_liberal
 		self.run_configuration["conservative"] = self.mode_conservative
-
+		self.run_configuration["fatigue"] = self.fatigue
+		self.run_configuration["fatigue_start"] = self.fatigue_start
 
 	def prepare_simulation_run(self, x):
 		"""Nothing to be done here"""
@@ -41,7 +44,7 @@ class BehaviorCalibration(CodeExecution):
 
 	def _write_csv_log(self, score):
 		with open(self.csv_log, 'a') as fout:
-			fout.write("{fips},{ncounties},{score},{liberal},{conservative},{finished_time},{starttime}\n".format(
+			fout.write("{fips},{ncounties},{score},{liberal},{conservative},{fatigue},{fatigue_start},{finished_time},{starttime}\n".format(
 				score=score,
 				finished_time=datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
 				starttime=self.start_time.strftime("%Y-%m-%dT%H:%M:%S"),

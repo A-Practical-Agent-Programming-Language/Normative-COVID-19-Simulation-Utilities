@@ -18,9 +18,6 @@ class DiseaseCalibration(CodeExecution):
 		self.base_disease_model = self.disease_model_file
 		self.disease_model_file = os.path.join('.persistent', '.tmp', "scaled_disease_model_file.toml")
 
-		self.run_configuration["liberal"] = self.mode_liberal
-		self.run_configuration["conservative"] = self.mode_conservative
-
 		exists = os.path.exists(self.csv_log)
 		if not exists:
 			with open(self.csv_log, "a") as fout:

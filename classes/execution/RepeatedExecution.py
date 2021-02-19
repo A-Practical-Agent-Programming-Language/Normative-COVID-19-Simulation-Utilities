@@ -5,11 +5,10 @@ class RepeatedExecution(CodeExecution):
 	"""A simple class to repeatedly run an experiment with the same set of parameters a number of times"""
 
 	rundirectory_template = ["repeat", "{ncounties}counties-fips-{fips}", "{liberal}l-{conservative}c-run{run}"]
+	progress_format = "[REPEAT: {time}] {ncounties} counties ({fips}): {score} (dir={output_dir})\n"
 
 	def __init__(self,  *args, **kwargs):
 		super(RepeatedExecution, self).__init__(*args, **kwargs)
-		self.run_configuration["liberal"] = self.mode_liberal
-		self.run_configuration["conservative"] = self.mode_conservative
 
 	def calibrate(self, x):
 		super(RepeatedExecution, self).calibrate(x)

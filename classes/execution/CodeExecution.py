@@ -12,11 +12,29 @@ class CodeExecution(object):
 	pansim_shell = ["time", "pansim", "simplesim"]
 
 	"""Overridable members"""
-	rundirectory_template = ["behavior", "{ncounties}counties-fips-{fips}", "{liberal}l-{conservative}c-run{run}"]
-	progress_format = "[BEHAVIOR: {time}] {ncounties} counties ({fips}): {score} for government attitudes liberal={x[0]}, conservative={x[1]} (dir={output_dir})\n"
+	rundirectory_template = ["behavior", "{ncounties}counties-fips-{fips}", "{liberal}l-{conservative}c-{fatigue}f-{fatigue_start}fs-run{run}"]
+	progress_format = "[BEHAVIOR: {time}] {ncounties} counties ({fips}): {score} for government attitudes liberal={x[0]}, conservative={x[1]}, fatigue={x[2]}, fatigue_start={x[3]} (dir={output_dir})\n"
 	target_file = ""
 
-	def __init__(self, county_configuration_file, sim2apl_jar, counties, disease_model_file, n_cpus=1, java_home="java", java_threads=1, java_heap_size_max="64g", java_heap_size_initial="55g", output_dir=None, mode_liberal=0.5, mode_conservative=0.5, n_runs=10, epicurve_file="epicurve.csv"):
+	def __init__(
+			self,
+			county_configuration_file,
+			sim2apl_jar,
+			counties,
+			disease_model_file,
+			n_cpus=1,
+			java_home="java",
+			java_threads=1,
+			java_heap_size_max="64g",
+			java_heap_size_initial="55g",
+			output_dir=None,
+			mode_liberal=0.5,
+			mode_conservative=0.5,
+			fatigue=0.0125,
+			fatigue_start=60,
+			n_runs=10,
+			epicurve_file="epicurve.csv"
+	):
 		self.county_configuration_file = county_configuration_file
 		self.counties = counties
 		self.n_cpus = n_cpus
@@ -31,6 +49,8 @@ class CodeExecution(object):
 
 		self.mode_liberal = mode_liberal
 		self.mode_conservative = mode_conservative
+		self.fatigue = fatigue
+		self.fatigue_start = fatigue_start
 
 		self.disease_model_file = disease_model_file
 
@@ -43,11 +63,15 @@ class CodeExecution(object):
 		self.counties = counties
 		self.run_configuration = dict(
 			fips="-".join(sorted(map(lambda x: str(x["fipscode"]), counties.values()))),
-			ncounties=len(counties)
+			ncounties=len(counties),
+			liberal=self.mode_liberal,
+			conservative=self.mode_conservative,
+			fatigue=self.fatigue,
+			fatigue_start=self.fatigue_start
 		)
+
 		self.lid_partition, self.pid_partition = self.get_partitions()
 		self.start_time = datetime.now()
-
 
 	def get_partitions(self) -> (str, str):
 		fname = f"_partition_{self.n_cpus}"
@@ -81,7 +105,6 @@ class CodeExecution(object):
 			self.run_configuration["run"] = i
 			self.start_run_time = datetime.now()
 
-			# AgentState().scramble_state("shuffled_start_state.csv")
 			self.prepare_simulation_run(x)
 
 			if not os.path.exists(self.get_target_file()):
@@ -184,7 +207,8 @@ class CodeExecution(object):
 	def _java_command(self):
 		return [
 			self.java_home, f"-Xmx{self.max_heap_size}", f"-Xms{self.initial_heap_size}", "-jar", self.sim2apl_jar, "--config", self.county_configuration_file,
-			"--mode-liberal", str(self.mode_liberal), "--mode-conservative", str(self.mode_conservative), "-t", str(self.java_threads), "-c",
+			"--mode-liberal", str(self.mode_liberal), "--mode-conservative", str(self.mode_conservative), "--fatigue",
+			str(self.fatigue), "--fatigue-start", str(int(self.fatigue_start)), "-t", str(self.java_threads), "-c",
 			"--output", self.get_base_directory()
 		] + self.get_extra_java_commands()
 
