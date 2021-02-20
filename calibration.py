@@ -7,6 +7,7 @@ import toml
 
 from scipy.optimize import minimize
 
+from classes.Epicurve_RMSE import Epicurve_RMSE
 from classes.execution.BehaviorCalibration import BehaviorCalibration
 from classes.execution.DiseaseCalibration import DiseaseCalibration
 from classes.Gyration import Gyration
@@ -42,10 +43,6 @@ from classes.execution.RepeatedExecution import RepeatedExecution
 @click.option(
 	'--number-of-runs', '-r', type=int, default=10,
 	help="How many times should the simulation be run for each configuration"
-)
-@click.option(
-	"--epicurve-file", type=str, default="epicurve.csv",
-	help="Specify the name (not the directory) the epicurve file should get"
 )
 @click.pass_context
 def start(ctx, **kwargs):
@@ -99,8 +96,7 @@ def start(ctx, **kwargs):
 			java_heap_size_max=kwargs["xmx"],
 			java_heap_size_initial=kwargs["xms"],
 			output_dir=kwargs["output_dir"],
-			n_runs=kwargs["number_of_runs"],
-			epicurve_file=kwargs["epicurve_file"]
+			n_runs=kwargs["number_of_runs"]
 		)
 	)
 
@@ -173,8 +169,19 @@ def behavior(ctx, mobility_index_file, tick_averages_file, sliding_window_size):
 )
 @click.option("--fatigue", help="The fatigue factor with which the agents' trust attitude will decrease each day")
 @click.option("--fatigue-start", help="The start time step for decreasing the agents' trust attitude with fatigue")
+@click.option(
+	"--case-data-file",
+	help="The file with actual case data",
+	default="external/va-counties-covid19-cases.csv"
+)
+@click.option(
+	"--scale-factor",
+	help=
+	"Scale the actual recorded case count data with this value before comparing, to account for uncertainty in testing",
+	default=30
+)
 @click.pass_context
-def disease(ctx, mode_liberal, mode_conservative, fatigue, fatigue_start):
+def disease(ctx, mode_liberal, mode_conservative, fatigue, fatigue_start, case_data_file, scale_factor):
 	click.echo("Disease calibration started")
 	args = ctx.obj["args"]
 	args["mode_liberal"] = mode_liberal
@@ -182,13 +189,13 @@ def disease(ctx, mode_liberal, mode_conservative, fatigue, fatigue_start):
 	args["fatigue"] = fatigue
 	args["fatigue_start"] = fatigue_start
 
+	args["epicurve_rmse"] = Epicurve_RMSE(ctx.obj['counties'], case_data_file, scale_factor)
 	dc = DiseaseCalibration(**args)
 
 	initial_simplex = [
-		[1/100, 0.05, 0.010],
-		[1/200, 0.05, 0.015],
-		[1/70, 0.05, 0.05],
-		[1 / 100, 0.05, 0.05],
+		[0.00045, 0.0003375],
+		[0.0045, 0.0003375],
+		[0.00045, 0.003375]
 	]
 
 	calibrate(dc.calibrate, initial_simplex)

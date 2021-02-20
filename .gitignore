@@ -147,6 +147,7 @@ logging.properties
 
 # Request for sharing
 va_county_mobility_index.csv
+va-counties-covid19-cases.csv
 #gyration_radius_calculator.py
 #calculate_mobility_index.py
 

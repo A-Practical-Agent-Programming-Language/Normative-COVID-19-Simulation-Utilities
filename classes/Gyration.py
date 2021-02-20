@@ -8,7 +8,13 @@ from sklearn.metrics import mean_squared_error
 
 class Gyration(object):
 
-	def __init__(self, va_gyration_mobility_index_file: str, tick_averages_file_name: str, counties: [Dict[str, Dict[str, Any]]], sliding_window_size: int) -> None:
+	def __init__(
+			self,
+			va_gyration_mobility_index_file: str,
+			tick_averages_file_name: str,
+			counties: [Dict[str, Dict[str, Any]]],
+			sliding_window_size: int
+	) -> None:
 		self.__day_average_file_template = os.path.join('.persistent', 'day-averages', 'day-averages-{0}.csv')
 		self._va_gyration_mobility_index_file = va_gyration_mobility_index_file
 		self._baseline_mobility_index = self._load_baseline_mobility_index()
@@ -51,6 +57,16 @@ class Gyration(object):
 
 	@staticmethod
 	def _load_county_baseline_radius_from_file(stored_day_averages: str) -> Dict[int, float] or None:
+		"""
+		Loads the baseline radius of gyration for a county
+		Args:
+			stored_day_averages: The persistent radius of gyration file if it exists, or None otherwise
+
+		Returns:
+			A dictionary with the dates as keys and radius of gyration as values for the provided county, if the
+			persistent file exists, None otherwise
+
+		"""
 		if os.path.exists(stored_day_averages):
 			day_averages = dict()
 			with open(stored_day_averages, 'r') as fin:
@@ -98,6 +114,17 @@ class Gyration(object):
 
 	@staticmethod
 	def _read_tick_averages_file(tick_averages_file: str) -> Dict[int, Dict[str, float]]:
+		"""
+		Reads the file produced by the simulation of average radius of gyration for each county,
+
+		Args:
+			tick_averages_file: File with radius of gyration for each county
+
+		Returns:
+			A dictionary of dictionaries, with the county's FIPS code as the first key, and in the nested dictionary
+			the date as the key and radius of gyration as value
+
+		"""
 		tick_values = dict()
 		with open(tick_averages_file, 'r') as in_file:
 			for line in in_file.read().splitlines():
@@ -126,6 +153,16 @@ class Gyration(object):
 
 	@staticmethod
 	def _write_tick_averages_to_run_directory(fips_codes: List[int], overview: Dict[str, Dict[int, Dict[str, float]]], run_directory: str) -> None:
+		"""
+		Stores the calculated scores next to the other data produced by the simulation
+		Args:
+			fips_codes:
+			overview:
+			run_directory:
+
+		Returns:
+
+		"""
 		with open(os.path.join(run_directory, "mobility_index.csv"), 'w') as out:
 			out.write(",".join(["date"] + sorted(list(map(lambda x: str(x), fips_codes))*5)))
 			out.write(",".join(["\n"] + [x for _ in fips_codes for x in ["real", "agents", "real_unsmoothed", "agents_unsmoothed", "agent_radiusKM"]]) + "\n")
