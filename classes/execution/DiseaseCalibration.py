@@ -15,7 +15,10 @@ class DiseaseCalibration(CodeExecution):
 		super(DiseaseCalibration, self).__init__(*args, **kwargs)
 		self.target_file = self.epicurve_filename
 		self.base_disease_model = self.disease_model_file
-		self.disease_model_file = os.path.join('.persistent', '.tmp', "scaled_disease_model_file.toml")
+		self.disease_model_file = os.path.join(
+			'.persistent', '.tmp',
+			f"scaled_disease_model_file_{kwargs['output_dir'].split(os.path.sep)[-1]}_" +
+			f"{self.start_time.strftime('%Y_%m_%dT%H_%M_%S')}.toml")
 		self.epicurve_rmse = epicurve_rmse
 
 		exists = os.path.exists(self.csv_log)
