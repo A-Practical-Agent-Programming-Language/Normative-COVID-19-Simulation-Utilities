@@ -129,9 +129,22 @@ def print_dict(dct, ident=0):
 	"RMSE. Note that for the baseline, the actual size of the window used may be smaller, because some "
 	"dates are missing"
 )
+@click.option(
+	"--test-gyration",
+	type=bool,
+	default=False,
+	help=
+	"Do not perform any calibration, just run the code to calculate the radius of gyration and mobility index. "
+	"Make sure to pass an absolute value to tick-averages-file in that case"
+)
 @click.pass_context
-def behavior(ctx, mobility_index_file, tick_averages_file, sliding_window_size):
+def behavior(ctx, mobility_index_file, tick_averages_file, sliding_window_size, test_gyration):
 	click.echo("Starting Behavior Calibration")
+
+	if test_gyration:
+		tick_file_segments = tick_averages_file.split(os.path.sep)
+		tick_averages_file = tick_file_segments[-1]
+
 	gyration = Gyration(
 		mobility_index_file,
 		tick_averages_file,
@@ -139,20 +152,23 @@ def behavior(ctx, mobility_index_file, tick_averages_file, sliding_window_size):
 		sliding_window_size=sliding_window_size
 	)
 
-	bc = BehaviorCalibration(
-		gyration=gyration,
-		tick_averages_file=tick_averages_file,
-		**ctx.obj["args"]
-	)
+	if test_gyration:
+		gyration.calculate_rmse(os.path.join("/", *tick_file_segments[:-1]))
+	else:
+		bc = BehaviorCalibration(
+			gyration=gyration,
+			tick_averages_file=tick_averages_file,
+			**ctx.obj["args"]
+		)
 
-	initial_simplex = [
-		[0, 1, 0.0125, 60],
-		[1, 0, 0.0125, 60],
-		[1, 1, 0.0125, 60],
-		[0, 0, 0.0125, 60],
-		[0.5, 0.5, 0.0125, 60]
-	]
-	calibrate(bc.calibrate, initial_simplex)
+		initial_simplex = [
+			[0, 1, 0.0125, 60],
+			[1, 0, 0.0125, 60],
+			[1, 1, 0.0125, 60],
+			[0, 0, 0.0125, 60],
+			[0.5, 0.5, 0.0125, 60]
+		]
+		calibrate(bc.calibrate, initial_simplex)
 
 
 @start.command(
