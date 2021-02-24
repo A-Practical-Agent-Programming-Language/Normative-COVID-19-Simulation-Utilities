@@ -1,3 +1,4 @@
+import json
 import os
 import random
 import subprocess
@@ -33,7 +34,9 @@ class CodeExecution(object):
 			fatigue=0.0125,
 			fatigue_start=60,
 			n_runs=10,
-			epicurve_file="epicurve.csv"
+			epicurve_file="epicurve.csv",
+			name=None,
+			is_master=False
 	):
 		self.county_configuration_file = county_configuration_file
 		self.counties = counties
@@ -53,6 +56,9 @@ class CodeExecution(object):
 		self.fatigue_start = fatigue_start
 
 		self.disease_model_file = disease_model_file
+
+		self.name = name
+		self.is_master = is_master
 
 		if not os.path.exists("output"):
 			os.makedirs("output")
@@ -107,19 +113,38 @@ class CodeExecution(object):
 
 			self.prepare_simulation_run(x)
 
-			if not os.path.exists(self.get_target_file()):
-				print("Starting run ", self.run_configuration["run"], "See tail -f calibration.run.log for progress")
-				self.set_pansim_parameters()
-				self.start_run()
+			if self.is_master and i < self.n_runs - 1:
+				# Leave instructions for other node
+				os.makedirs(f".persistent/.tmp/{self.name}", exist_ok=True)
+				with open(f".persistent/.tmp/{self.name}/run-{i}", 'w') as instructions:
+					instructions.write(json.dumps(self.run_configuration))
 			else:
-				print(
-					"\nRun", self.run_configuration["run"],
-					"already took place; skipping. Delete the directory for that run if it needs to be calculated again")
+				if not os.path.exists(self.get_target_file()):
+					# TODO, we can read the number of lines to see if the run was successful
+					print("Starting run ", self.run_configuration["run"], "See tail -f calibration.run.log for progress")
+					self.set_pansim_parameters()
+					self.start_run()
+				else:
+					print(
+						"\nRun", self.run_configuration["run"],
+						"already took place; skipping. Delete the directory for that run if it needs to be calculated again")
 
-			print("Calculating loss for " + self.get_target_file())
-			scores.append(self.score_simulation_run(x))
+			if self.is_master and i >= self.n_runs - 1:
+				while not self.__all_runs_finished():
+					print("Waiting for other runs to finish")
+					time.sleep(1)
+
+				print("Calculating loss for " + self.get_target_file())
+				scores.append(self.score_simulation_run(x))
 
 		return self._process_loss(x, scores)
+
+	def __all_runs_finished(self):
+		if not self.is_master:
+			return True
+
+		for i in range(self.n_runs - 1):
+			return os.path.exists(f".persistent/.tmp/{self.name}/run-{i}.DONE")
 
 	def _process_loss(self, x, scores):
 		loss = sum(scores) / len(scores)
@@ -196,7 +221,12 @@ class CodeExecution(object):
 
 	def _start_java_background_process(self):
 		"""Executes the Java 2APL behavior model in the background"""
-		agentrun_log = os.path.join("output", f"calibration.agents.{self.start_time.strftime('%Y_%m_%dT%H_%M_%S')}.run.log")
+		name = self.name if self.name is None or self.name.startswith(".") else "." + self.name
+		name = name if name is None else name
+		name = name.replace(" ", "_")
+		if self.is_master:
+			name += "_master"
+		agentrun_log = os.path.join("output", f"calibration.agents{name}.{self.start_time.strftime('%Y_%m_%dT%H_%M_%S')}.run.log")
 		with open(agentrun_log, "a") as logfile:
 			return subprocess.Popen(self._java_command(), stdout=logfile, stderr=logfile)
 

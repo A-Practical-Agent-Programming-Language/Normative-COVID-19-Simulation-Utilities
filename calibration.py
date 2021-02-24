@@ -12,6 +12,7 @@ from classes.execution.BehaviorCalibration import BehaviorCalibration
 from classes.execution.DiseaseCalibration import DiseaseCalibration
 from classes.Gyration import Gyration
 from classes.execution.RepeatedExecution import RepeatedExecution
+from classes.execution.SlaveCodeExecution import SlaveCodeExecution
 
 
 @click.group()
@@ -43,6 +44,13 @@ from classes.execution.RepeatedExecution import RepeatedExecution
 @click.option(
 	'--number-of-runs', '-r', type=int, default=10,
 	help="How many times should the simulation be run for each configuration"
+)
+@click.option("--name", type=str, default=None, help="Short descriptive name")
+@click.option(
+	"--is-master", type=bool, default=False,
+	help=
+	"If true, this code will leave instructions for other compute nodes to run a specific configuration, instead"
+	"of starting the calibration run itself, except if the run is the nth number with n = --number-of-runs"
 )
 @click.pass_context
 def start(ctx, **kwargs):
@@ -96,7 +104,9 @@ def start(ctx, **kwargs):
 			java_heap_size_max=kwargs["xmx"],
 			java_heap_size_initial=kwargs["xms"],
 			output_dir=kwargs["output_dir"],
-			n_runs=kwargs["number_of_runs"]
+			n_runs=kwargs["number_of_runs"],
+			name=kwargs["name"],
+			is_master=kwargs["is_master"]
 		)
 	)
 
@@ -244,6 +254,21 @@ def simplerepeat(ctx, mode_liberal, mode_conservative, fatigue, fatigue_start):
 
 	re = RepeatedExecution(**args)
 	re.calibrate(None)
+
+
+@start.command(
+	name="slave",
+	help=
+	"Run a slave to another calibration process. At least one process with --is-master set to true should be provided,"
+	"and exactly N slave processes should be started, with N being one less than the --number-of-runs specified to the"
+	"master process. "
+	"The --name and --output-dir MUST BE THE SAME on all these runs"
+)
+@click.option("--run", type=int, required=True, help="The run number this node should execute")
+@click.pass_context
+def slave_calibration(ctx, run):
+	args = ctx.obj["args"]
+	SlaveCodeExecution(run=run, **args)
 
 
 def calibrate(fitness_function, initial_simplex):
