@@ -117,6 +117,7 @@ class CodeExecution(object):
 				# Leave instructions for other node
 				os.makedirs(f".persistent/.tmp/{self.name}", exist_ok=True)
 				with open(f".persistent/.tmp/{self.name}/run-{i}", 'w') as instructions:
+					self.run_configuration["run_directory_template"] = self.rundirectory_template
 					instructions.write(json.dumps(self.run_configuration))
 			else:
 				if not os.path.exists(self.get_target_file()):
@@ -225,7 +226,7 @@ class CodeExecution(object):
 		name = name if name is None else name
 		name = name.replace(" ", "_")
 		if self.is_master:
-			name += "_master"
+			name += ".master"
 		agentrun_log = os.path.join("output", f"calibration.agents{name}.{self.start_time.strftime('%Y_%m_%dT%H_%M_%S')}.run.log")
 		with open(agentrun_log, "a") as logfile:
 			return subprocess.Popen(self._java_command(), stdout=logfile, stderr=logfile)
