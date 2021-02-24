@@ -164,7 +164,7 @@ class Gyration(object):
 
 		"""
 		with open(os.path.join(run_directory, "mobility_index.csv"), 'w') as out:
-			out.write(",".join(["date"] + sorted(list(map(lambda x: str(x), fips_codes))*5)))
+			out.write(",".join(["date"] + [a for sublist in list(map(lambda x: [str(x)] * 5, fips_codes)) for a in sublist]))
 			out.write(",".join(["\n"] + [x for _ in fips_codes for x in ["real", "agents", "real_unsmoothed", "agents_unsmoothed", "agent_radiusKM"]]) + "\n")
 
 			for d in sorted(overview.keys()):
