@@ -27,7 +27,7 @@ class DiseaseCalibration(CodeExecution):
 				fout.write("fips,#counties,score,isymp,iasymp,time_finished,calibration_start_time\n")
 
 	def calibrate(self, x):
-		if x[0] < 0 or x[1] < 0 or x[0] > 1 or x[1] > 2:
+		if 0 > x[1] > x[0] > 1:
 			return 999999999999
 		else:
 			return super(DiseaseCalibration, self).calibrate(x)
