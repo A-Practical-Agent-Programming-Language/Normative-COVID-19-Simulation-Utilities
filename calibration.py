@@ -219,9 +219,9 @@ def disease(ctx, mode_liberal, mode_conservative, fatigue, fatigue_start, case_d
 	dc = DiseaseCalibration(**args)
 
 	initial_simplex = [
-		[0.00045, 0.0003375],
-		[0.0045, 0.0003375],
-		[0.00045, 0.003375]
+		[0.00001, 0.000005],
+		[0.0001, 0.00005],
+		[0.000001, 0.0000005]
 	]
 
 	calibrate(dc.calibrate, initial_simplex)
