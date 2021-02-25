@@ -35,6 +35,7 @@ class SlaveCodeExecution(CodeExecution):
 			self.run_configuration = json.loads(instructions)
 			self.run_configuration["run"] = self.run
 			self.rundirectory_template = self.run_configuration["run_directory_template"]
+			self.disease_model_file = self.run_configuration["disease_model_file"]
 			os.remove(self.__instruction_file)
 
 			if not os.path.exists(self.get_target_file()):
