@@ -149,6 +149,10 @@ class CodeExecution(object):
 			if not os.path.exists(f".persistent/.tmp/{self.name}/run-{i}.DONE"):
 				return False
 
+		for i in range(self.n_runs - 1):
+			if os.path.exists(f".persistent/.tmp/{self.name}/run-{i}.DONE"):
+				os.remove(f".persistent/.tmp/{self.name}/run-{i}.DONE")
+
 		return True
 
 	def _process_loss(self, x, scores):
