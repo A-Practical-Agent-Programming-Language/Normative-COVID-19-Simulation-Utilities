@@ -145,7 +145,10 @@ class CodeExecution(object):
 			return True
 
 		for i in range(self.n_runs - 1):
-			return os.path.exists(f".persistent/.tmp/{self.name}/run-{i}.DONE")
+			if not os.path.exists(f".persistent/.tmp/{self.name}/run-{i}.DONE"):
+				return False
+
+		return True
 
 	def _process_loss(self, x, scores):
 		loss = sum(scores) / len(scores)
