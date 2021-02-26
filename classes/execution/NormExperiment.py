@@ -80,10 +80,12 @@ class NormExperiment(CodeExecution):
 
 	def create_norm_schedule_for_date(self, date):
 		output_file = os.path.join(self.norm_schedule_dir, f'norm_schedule_until_{date}.csv')
+		has_norms = False
 		with open(self.norms_file, 'r') as norms_in:
 			with open(output_file, 'w') as norms_out:
 				for line in norms_in:
 					if not len(line.split(",")) or line.split(",")[0] <= date:
+						has_norms = True
 						norms_out.write(line)
 
-		return output_file
+		return output_file if has_norms else ""
