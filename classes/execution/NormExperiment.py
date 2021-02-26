@@ -83,6 +83,7 @@ class NormExperiment(CodeExecution):
 		has_norms = False
 		with open(self.norms_file, 'r') as norms_in:
 			with open(output_file, 'w') as norms_out:
+				norms_out.write(norms_in.readline())
 				for line in norms_in:
 					if not len(line.split(",")) or line.split(",")[0] <= date:
 						has_norms = True
