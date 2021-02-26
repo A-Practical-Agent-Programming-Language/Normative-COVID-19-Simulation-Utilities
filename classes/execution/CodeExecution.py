@@ -114,11 +114,12 @@ class CodeExecution(object):
 			self.prepare_simulation_run(x)
 
 			if self.is_master and i < self.n_runs - 1:
-				# Leave instructions for other node
+				# Leave instructions for slave node
 				os.makedirs(f".persistent/.tmp/{self.name}", exist_ok=True)
 				with open(f".persistent/.tmp/{self.name}/run-{i}", 'w') as instructions:
 					self.run_configuration["run_directory_template"] = self.rundirectory_template
 					self.run_configuration["disease_model_file"] = self.disease_model_file
+					self.run_configuration["county_configuration_file"] = self.county_configuration_file
 					instructions.write(json.dumps(self.run_configuration))
 			else:
 				if not os.path.exists(self.get_target_file()):

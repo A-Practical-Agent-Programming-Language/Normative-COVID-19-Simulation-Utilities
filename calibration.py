@@ -11,6 +11,7 @@ from classes.Epicurve_RMSE import Epicurve_RMSE
 from classes.execution.BehaviorCalibration import BehaviorCalibration
 from classes.execution.DiseaseCalibration import DiseaseCalibration
 from classes.Gyration import Gyration
+from classes.execution.NormExperiment import NormExperiment
 from classes.execution.RepeatedExecution import RepeatedExecution
 from classes.execution.SlaveCodeExecution import SlaveCodeExecution
 
@@ -269,6 +270,32 @@ def simplerepeat(ctx, mode_liberal, mode_conservative, fatigue, fatigue_start):
 def slave_calibration(ctx, run):
 	args = ctx.obj["args"]
 	SlaveCodeExecution(run=run, **args)
+
+@start.command(
+	name="experiment",
+	help="Run the norm experiment master"
+)
+@click.option(
+	'--mode-liberal', '-ml', default=0.5,
+	help="Specify the mode of the government trust factor for the liberal voting agents"
+)
+@click.option(
+	'--mode-conservative', '-mc', default=0.5,
+	help="Specify the mode of the government trust factor for the liberal voting agents"
+)
+@click.option("--fatigue", help="The fatigue factor with which the agents' trust attitude will decrease each day")
+@click.option("--fatigue-start", help="The start time step for decreasing the agents' trust attitude with fatigue")
+@click.pass_context
+def experiment(ctx, mode_liberal, mode_conservative, fatigue, fatigue_start):
+	click.echo("Experiment started")
+	args = ctx.obj["args"]
+	args["mode_liberal"] = mode_liberal
+	args["mode_conservative"] = mode_conservative
+	args["fatigue"] = fatigue
+	args["fatigue_start"] = fatigue_start
+
+	experiment = NormExperiment(**args)
+	experiment.initiate()
 
 
 def calibrate(fitness_function, initial_simplex):

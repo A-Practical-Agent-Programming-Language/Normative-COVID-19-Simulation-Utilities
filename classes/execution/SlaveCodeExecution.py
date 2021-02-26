@@ -36,13 +36,14 @@ class SlaveCodeExecution(CodeExecution):
 			self.run_configuration["run"] = self.run
 			self.rundirectory_template = self.run_configuration["run_directory_template"]
 			self.disease_model_file = self.run_configuration["disease_model_file"]
+			self.county_configuration_file = self.run_configuration["county_configuration_file"]
 			os.remove(self.__instruction_file)
 
 			if not os.path.exists(self.get_target_file()):
 				# TODO, we can read the number of lines to see if the run was successful
 				print(f"Starting run {self.run}")
 				self.set_pansim_parameters()
-				self.start_run() # TODO enable later
+				self.start_run()
 			else:
 				print("Run already took place; skipping")
 
