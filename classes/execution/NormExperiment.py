@@ -89,3 +89,11 @@ class NormExperiment(CodeExecution):
 						norms_out.write(line)
 
 		return output_file if has_norms else ""
+
+	def _process_loss(self, x, scores):
+		"""
+		The experiment execution does not use the calculated loss, so we can return None, but the _process_loss method
+		of super uses the numbers (None in this class) returned by score_simulation_run().
+		Let's just pass that execution entirely
+		"""
+		pass
