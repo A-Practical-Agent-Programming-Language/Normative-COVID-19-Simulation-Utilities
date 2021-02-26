@@ -7,6 +7,8 @@ from classes.execution.CodeExecution import CodeExecution
 
 
 class NormExperiment(CodeExecution):
+	rundirectory_template = ["experiment", "{ncounties}counties-fips-{fips}",
+	                         "experiment-{experiment_index}-norms-until{experiment_max_date}-run{run}"]
 	output_dir = os.path.join('.persistent', '.tmp', 'norms_until_dates')
 	norm_schedule_dir = os.path.join(output_dir, 'norm-schedules')
 	county_config_dir = os.path.join(output_dir, 'county-configuration')
@@ -22,9 +24,11 @@ class NormExperiment(CodeExecution):
 		print(f"Found {len(self.experiment_dates)} unique dates")
 
 	def initiate(self):
-		for date in self.experiment_dates:
+		for i, date in enumerate(self.experiment_dates):
 			norm_schedule = self.create_norm_schedule_for_date(date)
 			self.county_configuration_file = self.update_county_configuration_file(date, norm_schedule)
+			self.run_configuration["experiment_index"] = i
+			self.run_configuration["experiment_max_date"] = date
 			print(
 				f"Starting {self.n_runs} runs for all norms up to and including {date}), using {self.county_configuration_file}")
 			self.calibrate(None)
