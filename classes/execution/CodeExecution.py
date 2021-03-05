@@ -137,6 +137,11 @@ class CodeExecution(object):
 					print("Waiting for other runs to finish")
 					time.sleep(1)
 
+				for j in range(self.n_runs):
+					self.run_configuration["run"] = j
+					print("Calculating loss for " + self.get_target_file())
+					scores.append(self.score_simulation_run(x))
+			elif not self.is_master:
 				print("Calculating loss for " + self.get_target_file())
 				scores.append(self.score_simulation_run(x))
 
