@@ -40,7 +40,7 @@ class BehaviorCalibration(CodeExecution):
 		pass
 
 	def score_simulation_run(self, x):
-		return self.gyration.calculate_rmse(self.get_base_directory())
+		return self.gyration.calculate_rmse([self.get_base_directory()])
 
 	def _write_csv_log(self, score):
 		with open(self.csv_log, 'a') as fout:

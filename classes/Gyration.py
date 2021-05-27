@@ -2,7 +2,7 @@ import datetime
 import os
 import subprocess
 from math import sqrt
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Tuple
 from sklearn.metrics import mean_squared_error
 
 
@@ -113,7 +113,7 @@ class Gyration(object):
 		return average_per_day
 
 	@staticmethod
-	def _read_tick_averages_file(tick_averages_file: str) -> Dict[int, Dict[str, float]]:
+	def _read_tick_averages_file(tick_averages_file: str) -> Dict[int, Dict[str, List[Tuple[float, int]]]]:
 		"""
 		Reads the file produced by the simulation of average radius of gyration for each county,
 
@@ -128,25 +128,41 @@ class Gyration(object):
 		tick_values = dict()
 		with open(tick_averages_file, 'r') as in_file:
 			for line in in_file.read().splitlines():
-				date, fips, radius = line.split(",")
+				date, fips, radius, num_agents = line.split(",")
+				num_agents = 1
 				fips = int(fips)
 				radius = float(radius)
 				if fips not in tick_values:
 					tick_values[fips] = dict()
-				tick_values[fips][date] = radius
+				if date not in tick_values[fips]:
+					tick_values[fips][date] = list()
+				tick_values[fips][date].append((radius, int(num_agents)))
 
 		return tick_values
 
-	def calculate_rmse(self, run_directory):
+	def calculate_rmse(self, run_directories: list):
 		"""
 		Calculate the Root Mean Square Error (RMSE) of a simulation run, by comparing the
 		mobility index (percentage change from the baseline for each day) of the agents to
 		that observed on the same day in real life
 		"""
-		tick_averages = self._read_tick_averages_file(os.path.join(run_directory, self._tick_averages_file_name))
+		tick_averages_list = [self._read_tick_averages_file(os.path.join(run_directory, self._tick_averages_file_name)) for run_directory in run_directories]
+		tick_averages = dict()
+		for ta in tick_averages_list:
+			for fips in ta:
+				tick_averages[fips] = dict()
+				for date in ta[fips]:
+					r = float(0)
+					n = 0
+					for radius, num_agents in ta[fips][date]:
+						r += (radius * num_agents)
+						n += num_agents
+					tick_averages[fips][date] = r / n
+
 		pct_reduction_predicted, pct_reduction_target, overview = self._make_mobility_index_comparison_lists(tick_averages)
 
-		self._write_tick_averages_to_run_directory(sorted(tick_averages.keys()), overview, run_directory)
+		for run_directory in run_directories:
+			self._write_tick_averages_to_run_directory(sorted(tick_averages.keys()), overview, run_directory)
 
 		# Calculate the RMSE by comparing the actual vs. simulated mobility indices
 		return sqrt(mean_squared_error(pct_reduction_target, pct_reduction_predicted))

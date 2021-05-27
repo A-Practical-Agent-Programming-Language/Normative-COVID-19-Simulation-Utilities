@@ -237,7 +237,7 @@ class CodeExecution(object):
 	def _start_java_background_process(self):
 		"""Executes the Java 2APL behavior model in the background"""
 		name = self.name if self.name is None or self.name.startswith(".") else "." + self.name
-		name = name if name is None else name
+		name = "" if name is None else name
 		name = name.replace(" ", "_")
 		if self.is_master:
 			name += ".master"

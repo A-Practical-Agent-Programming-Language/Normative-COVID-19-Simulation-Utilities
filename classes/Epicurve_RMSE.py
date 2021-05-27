@@ -2,7 +2,7 @@ import os
 import re
 from collections import defaultdict
 from math import sqrt
-from typing import Dict, Any
+from typing import Dict, Any, List
 from sklearn.metrics import mean_squared_error
 
 
@@ -68,7 +68,7 @@ class Epicurve_RMSE(object):
 
 		return epicurve
 
-	def calculate_rmse(self, run_directory: str):
+	def calculate_rmse(self, run_directories: List[str]):
 		"""
 		Calculates the root mean squared error (RMSE) between the number of recovered agents in the simulation and
 		the number of actually observed cases (the latter multiplied with {scale_factor} to account for testing
@@ -81,7 +81,7 @@ class Epicurve_RMSE(object):
 			Double: RMSE between scaled actual case count and number of agents recovered in the simulation
 
 		"""
-		predicted_recovered = self.__read_recovered_from_epicurve(run_directory)
+		predicted_recovered = [self.__read_recovered_from_epicurve(run_directory) for run_directory in run_directories]
 		predicted, target = list(), list()
 
 		dates = sorted(list(set([x for sublist in [list(predicted_recovered.keys()), list(self.baseline.keys())] for x in sublist])))
