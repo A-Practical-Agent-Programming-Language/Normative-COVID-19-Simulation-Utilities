@@ -364,7 +364,7 @@ def load_toml_configuration(county_config_file):
 	conf["simulation"]["diseasemodel"] = disease
 
 	for county, cconf in conf["counties"].items():
-		for k in ["activities", "households", "persons", "locations", "statefile"]:
+		for k in ["activities", "households", "persons", "locations", "statefile", "locationDesignations"]:
 			if not k in cconf:
 				continue
 			missing_in_key = []
