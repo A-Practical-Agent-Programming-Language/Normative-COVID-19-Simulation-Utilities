@@ -21,7 +21,12 @@ class EssentialDesignationExtractor(object):
 	def from_synthetic_population_directory(self, synthetic_population_location: str):
 		self.synthetic_population_location = synthetic_population_location
 		self.synth_pop_files = self.find_files()
-		self.__extract_for_county(os.path.join(self.synthetic_population_location, 'location_designation.csv'))
+		try:
+			return self.__extract_for_county(os.path.join(self.synthetic_population_location, 'location_designation.csv'))
+		except PermissionError:
+			fname = "location_designation_" + os.path.split(self.synthetic_population_location.rstrip(os.path.sep))[-1] + ".csv"
+			os.makedirs(os.path.join(".persistent", "location_designations"), exist_ok=True)
+			return self.__extract_for_county(os.path.join(".persistent", "location_designations", fname))
 
 	def from_county(self, county: dict):
 		self.synth_pop_files = {
@@ -30,7 +35,12 @@ class EssentialDesignationExtractor(object):
 			"person": county["persons"]
 		}
 
-		return self.__extract_for_county(self.synth_pop_files["household"][0].replace("household", "essential_location_designation"))
+		try:
+			return self.__extract_for_county(self.synth_pop_files["household"][0].replace("household", "essential_location_designation"))
+		except PermissionError:
+			fname = os.path.split(self.synth_pop_files["household"][0].rstrip(os.path.sep))[-1].replace("household", "essential_location_designation")
+			os.makedirs(os.path.join(".persistent", "location_designations"), exist_ok=True)
+			return self.__extract_for_county(os.path.join(".persistent", "location_designations", fname))
 
 	def __extract_for_county(self, output_file):
 		self.essential_workers, self.num_total_agents, self.num_essential_agents = self.load_essential_workers()
@@ -369,7 +379,7 @@ class EssentialDesignationExtractor(object):
 
 if __name__ == "__main__":
 	EDE = EssentialDesignationExtractor()
-	EDE.from_synthetic_population_directory(sys.argv[1])
+	print(EDE.from_synthetic_population_directory(sys.argv[1]))
 
 	# If you want to do some stats
 	# EDE.find_fraction_of_essential_visits_by_activity_type()

@@ -98,11 +98,6 @@ class CodeExecution(object):
 			subprocess.run(locations)
 		return lid_partition, pid_partition
 
-	def ensure_exists_essential_locations(self):
-		for county in self.counties:
-			if not "locationDesignations" in self.counties[county]:
-				self.counties[county]["locationDesignations"] = EssentialDesignationExtractor().from_county(self.counties[county])
-
 	def get_base_directory(self, filename=None):
 		t = list(map(lambda x: x.format(**self.run_configuration), self.rundirectory_template))
 		if filename is not None:
