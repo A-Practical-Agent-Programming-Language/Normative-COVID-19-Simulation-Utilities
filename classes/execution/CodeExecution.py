@@ -130,7 +130,7 @@ class CodeExecution(object):
 			else:
 				if not os.path.exists(self.get_target_file()):
 					print("Starting run ", self.run_configuration["run"], "See tail -f calibration.run.log for progress")
-					java_command_file = self.__create_java_command_file()
+					java_command_file = self._create_java_command_file()
 					self.set_pansim_parameters(java_command_file)
 					self.start_run(java_command_file)
 					os.remove(java_command_file)
@@ -242,8 +242,11 @@ class CodeExecution(object):
 			os.remove(java_command_file)
 			exit(pansim_process.returncode)
 
-	def __create_java_command_file(self):
-		fname = os.path.abspath(os.path.join(".persistent", ".tmp", f"start_behavior_model_{time.time()}.sh"))
+	def _create_java_command_file(self, suffix: str = None):
+		fname = os.path.abspath(os.path.join(".persistent", ".tmp", f"start_behavior_model_{time.time()}"))
+		if suffix is not None:
+			fname += suffix
+		fname += ".sh"
 		with open(fname, 'w') as command_out:
 			command_out.write("#!/bin/bash\n\n")
 			command_out.write(" ".join(self._java_command()))

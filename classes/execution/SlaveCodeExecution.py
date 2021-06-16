@@ -41,9 +41,11 @@ class SlaveCodeExecution(CodeExecution):
 
 			if not os.path.exists(self.get_target_file()):
 				# TODO, we can read the number of lines to see if the run was successful
-				print(f"Starting run {self.run}")
-				self.set_pansim_parameters()
-				self.start_run()
+				print(f"Starting slave run {self.run}")
+				java_command_file = self._create_java_command_file(f"_slave_{self.run}_")
+				self.set_pansim_parameters(java_command_file)
+				self.start_run(java_command_file)
+				os.remove(java_command_file)
 			else:
 				print("Run already took place; skipping")
 
