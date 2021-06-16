@@ -10,14 +10,34 @@ import numpy as np
 
 class EssentialDesignationExtractor(object):
 
-	def __init__(self, synthetic_population_location):
+	synthetic_population_location: str
+	synth_pop_files: Dict[str, List[str]]
+	essential_workers: List[str]
+	num_total_agents: int
+	num_essential_agents: int
+	home_locations: Dict[str, bool]
+	essential_locations: Dict[str, str]
+
+	def from_synthetic_population_directory(self, synthetic_population_location: str):
 		self.synthetic_population_location = synthetic_population_location
 		self.synth_pop_files = self.find_files()
+		self.__extract_for_county(os.path.join(self.synthetic_population_location, 'location_designation.csv'))
+
+	def from_county(self, county: dict):
+		self.synth_pop_files = {
+			"activities": county["locations"] if "locations" in county else county["activities"],
+			"household": county["households"],
+			"person": county["persons"]
+		}
+
+		return self.__extract_for_county(self.synth_pop_files["household"][0].replace("household", "essential_location_designation"))
+
+	def __extract_for_county(self, output_file):
 		self.essential_workers, self.num_total_agents, self.num_essential_agents = self.load_essential_workers()
 		self.home_locations = self.load_home_locations()
 		self.essential_locations = self.add_residences_to_location_designations()
 		self.mark_government_designation_with_highest_num_unique_visits_as_dmv()
-
+		return self.write_locations_file(output_file)
 
 	def find_files(self) -> Dict[str, List[str]]:
 		"""
@@ -104,11 +124,10 @@ class EssentialDesignationExtractor(object):
 
 		return locations
 
-	def write_locations_file(self):
-		output_file = os.path.join(self.synthetic_population_location, 'location_designation.csv')
+	def write_locations_file(self, output_file):
 		if os.path.exists(output_file):
-			print(output_file, "already exists. Please remove this file to continue")
-			exit(1)
+			print(output_file, "already exists. Please remove this file to create it again. Reusing for now")
+			return output_file
 		with open(output_file, 'w') as out:
 			out.write("lid,designation,isResidential\n")
 			for loc, designation in self.essential_locations.items():
@@ -121,6 +140,7 @@ class EssentialDesignationExtractor(object):
 				out.write(f"{loc},{designation},{1 if is_residential else 0}\n")
 
 		print("Created", output_file)
+		return output_file
 
 	def add_residences_to_location_designations(self, ) -> Dict[str, str]:
 		essential_locations = self._assign_essential_locations()
@@ -256,11 +276,6 @@ class EssentialDesignationExtractor(object):
 		for x in assignments:
 			print(x, assignments[x])
 
-		# TODO:
-		# - Create Bar chart for:
-		# 	* Distribution of essential worker locations
-		# 	* Distribution of location_designations from
-
 	def create_distribution_of_designation_bar_chart(self):
 		listed_location_assignments = self.__load_essentials_from_activities()
 		residentials = [x for x in self.essential_locations if self.essential_locations[x] == 'residential']
@@ -297,7 +312,8 @@ class EssentialDesignationExtractor(object):
 		self.__plot_ranges(labels, worker, located, set_d, False)
 		self.__plot_ranges(labels, worker_pct, located_pct, set_d_pct, True)
 
-	def __plot_ranges(self, labels, r1, r2, r3, pct):
+	@staticmethod
+	def __plot_ranges(labels, r1, r2, r3, pct):
 		x = np.arange(len(labels))
 		width = 0.2
 
@@ -335,10 +351,6 @@ class EssentialDesignationExtractor(object):
 				designation = designation[: -1*len('/residential')]
 			per_num_visits[num][designation] += 1
 
-
-		# for x in sorted(per_num_visits, key=lambda y: per_num_visits[y]['total']):
-		# 	print(per_num_visits[x]['total'], x)
-
 		keys = list(set([item for sublist in [per_num_visits[y].keys() for y in per_num_visits.keys()] for item in sublist]))
 		keys.remove('total')
 		keys.remove('none')
@@ -356,8 +368,8 @@ class EssentialDesignationExtractor(object):
 		plt.show()
 
 if __name__ == "__main__":
-	EDE = EssentialDesignationExtractor(sys.argv[1])
-	EDE.write_locations_file()
+	EDE = EssentialDesignationExtractor()
+	EDE.from_synthetic_population_directory(sys.argv[1])
 
 	# If you want to do some stats
 	# EDE.find_fraction_of_essential_visits_by_activity_type()

@@ -1,9 +1,14 @@
 import os
 import re
+import sys
 from collections import defaultdict
 from math import sqrt
 from typing import Dict, Any, List
+
+import numpy as np
 from sklearn.metrics import mean_squared_error
+
+from utility.utility import load_toml_configuration
 
 
 class Epicurve_RMSE(object):
@@ -15,13 +20,11 @@ class Epicurve_RMSE(object):
 			self,
 			counties: [Dict[str, Dict[str, Any]]],
 			case_file: str = 'external/va-counties-covid19-cases.csv',
-			scale_factor: int = 30
 	):
 		self.counties = counties
 		self.case_file = case_file
 		self.county_case_data = self.__load_case_data()
 		self.baseline = self.__create_relevant_epicurve()
-		self.scale_factor = scale_factor
 
 	def __load_case_data(self):
 		"""
@@ -68,20 +71,21 @@ class Epicurve_RMSE(object):
 
 		return epicurve
 
-	def calculate_rmse(self, run_directories: List[str]):
+	def calculate_rmse(self, scale_factor: int, run_directory: str):
 		"""
 		Calculates the root mean squared error (RMSE) between the number of recovered agents in the simulation and
 		the number of actually observed cases (the latter multiplied with {scale_factor} to account for testing
 		uncertainty)
 
 		Args:
-			run_directory:    Output directory of simulation run
+			scale_factor: 	  	Number to scale recorded number of cases by
+			run_directory:    Output directories of simulation runs for this parameter configuration
 
 		Returns:
 			Double: RMSE between scaled actual case count and number of agents recovered in the simulation
 
 		"""
-		predicted_recovered = [self.__read_recovered_from_epicurve(run_directory) for run_directory in run_directories]
+		predicted_recovered = self.__read_recovered_from_epicurve(run_directory)
 		predicted, target = list(), list()
 
 		dates = sorted(list(set([x for sublist in [list(predicted_recovered.keys()), list(self.baseline.keys())] for x in sublist])))
@@ -90,21 +94,21 @@ class Epicurve_RMSE(object):
 		for date in dates:
 			if date in self.baseline and date in predicted_recovered:
 				predicted.append(predicted_recovered[date])
-				target.append(self.baseline[date] * self.scale_factor)
+				target.append(self.baseline[date] * scale_factor)
 
 		# Write values used for calculating RSME to file, so plot of fits can be created later
 		with open(os.path.join(run_directory, 'compare-case-data.csv'), 'w') as epicurve_out:
 			epicurve_out.write("Date,Cases,ScaledCases,Recovered\n")
 			for date in dates:
 				cases = self.baseline[date] if date in self.baseline else ''
-				scaled_cases = cases * self.scale_factor if cases != '' else ''
+				scaled_cases = cases * scale_factor if cases != '' else ''
 				recovered = predicted_recovered[date] if date in predicted_recovered else ''
 				epicurve_out.write(f"{date},{cases},{scaled_cases},{recovered}\n")
 
 		return sqrt(mean_squared_error(target, predicted))
 
 	@staticmethod
-	def __read_recovered_from_epicurve(run_directory: str):
+	def __read_recovered_from_epicurve(run_directory: str) -> Dict[str, int]:
 		epicurve = dict()
 		with open(os.path.join(run_directory, 'epicurve.sim2apl.csv'), 'r') as epicurve_in:
 			headers = epicurve_in.readline()[:-1].split(";")
@@ -113,4 +117,13 @@ class Epicurve_RMSE(object):
 				epicurve[data[headers.index("Date")]] = int(data[int(headers.index("RECOVERED"))])
 
 		return epicurve
+
+
+if __name__ == "__main__":
+	t = load_toml_configuration(sys.argv[1])
+
+	os.chdir("../")
+	e = Epicurve_RMSE(t["counties"])
+
+	print(e.calculate_rmse(30, sys.argv[2]))
 

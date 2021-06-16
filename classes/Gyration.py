@@ -1,9 +1,14 @@
 import datetime
 import os
 import subprocess
+import sys
+from collections import defaultdict
 from math import sqrt
 from typing import List, Dict, Any, Tuple
+
 from sklearn.metrics import mean_squared_error
+
+from utility.utility import load_toml_configuration
 
 
 class Gyration(object):
@@ -129,7 +134,6 @@ class Gyration(object):
 		with open(tick_averages_file, 'r') as in_file:
 			for line in in_file.read().splitlines():
 				date, fips, radius, num_agents = line.split(",")
-				num_agents = 1
 				fips = int(fips)
 				radius = float(radius)
 				if fips not in tick_values:
@@ -140,26 +144,33 @@ class Gyration(object):
 
 		return tick_values
 
-	def calculate_rmse(self, run_directories: list):
+	def calculate_rmse(self, run_directories: List[str]):
 		"""
 		Calculate the Root Mean Square Error (RMSE) of a simulation run, by comparing the
 		mobility index (percentage change from the baseline for each day) of the agents to
 		that observed on the same day in real life
 		"""
-		tick_averages_list = [self._read_tick_averages_file(os.path.join(run_directory, self._tick_averages_file_name)) for run_directory in run_directories]
-		tick_averages = dict()
+		tick_averages_list: List[Dict[int, Dict[str, List[Tuple[float, int]]]]] = [
+			self._read_tick_averages_file(os.path.join(run_directory, self._tick_averages_file_name))
+			for run_directory in run_directories
+		]
+		tick_averages = defaultdict(lambda: defaultdict(list))
 		for ta in tick_averages_list:
 			for fips in ta:
-				tick_averages[fips] = dict()
 				for date in ta[fips]:
 					r = float(0)
 					n = 0
 					for radius, num_agents in ta[fips][date]:
 						r += (radius * num_agents)
 						n += num_agents
-					tick_averages[fips][date] = r / n
+					tick_averages[fips][date].append((r, n))
 
-		pct_reduction_predicted, pct_reduction_target, overview = self._make_mobility_index_comparison_lists(tick_averages)
+		tick_averages_combined = defaultdict(dict)
+		for fips in tick_averages:
+			for date, averages in tick_averages[fips].items():
+				tick_averages_combined[fips][date] = sum([x[0] for x in averages]) / sum(x[1] for x in averages)
+
+		pct_reduction_predicted, pct_reduction_target, overview = self._make_mobility_index_comparison_lists(tick_averages_combined)
 
 		for run_directory in run_directories:
 			self._write_tick_averages_to_run_directory(sorted(tick_averages.keys()), overview, run_directory)
@@ -307,3 +318,16 @@ class Gyration(object):
 		self._remove_dir(output_dir)
 		if os.path.exists(os.path.join("external", "gyration_radius_calculator_locations_{0}.log".format(fips_code))):
 			os.remove(os.path.join("external", "gyration_radius_calculator_locations_{0}.log".format(fips_code)))
+
+
+if __name__ == "__main__":
+	t = load_toml_configuration(sys.argv[1])
+
+	os.chdir("../")
+	g = Gyration(
+		os.path.join("external", "va_county_mobility_index.csv"),
+		"tick-averages.csv",
+		t["counties"],
+		7
+	)
+	print(g.calculate_rmse(sys.argv[2:]))

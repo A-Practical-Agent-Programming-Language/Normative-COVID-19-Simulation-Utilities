@@ -1,3 +1,4 @@
+import math
 import os
 import re
 from datetime import datetime
@@ -20,6 +21,7 @@ class DiseaseCalibration(CodeExecution):
 			f"scaled_disease_model_file_{kwargs['output_dir'].split(os.path.sep)[-1]}_" +
 			f"{self.start_time.strftime('%Y_%m_%dT%H_%M_%S')}.toml")
 		self.epicurve_rmse = epicurve_rmse
+		self.scores = dict()
 
 		exists = os.path.exists(self.csv_log)
 		if not exists:
@@ -27,10 +29,16 @@ class DiseaseCalibration(CodeExecution):
 				fout.write("fips,#counties,score,isymp,iasymp,time_finished,calibration_start_time\n")
 
 	def calibrate(self, x):
-		if 0 > x[1] > x[0] > 1:
+		x[2] = math.ceil(x[2] / 2) * 2
+		x = tuple(x)
+		if x in self.scores:
+			return self.scores[x]
+		if 0 > x[1] > x[0] > 1 or x[2] > 50:
 			return 999999999999
 		else:
-			return super(DiseaseCalibration, self).calibrate(x)
+			score = super(DiseaseCalibration, self).calibrate(x)
+			self.scores[x] = score
+			return score
 
 	def store_fitness_guess(self, x):
 		self.run_configuration["isymp"] = x[0]

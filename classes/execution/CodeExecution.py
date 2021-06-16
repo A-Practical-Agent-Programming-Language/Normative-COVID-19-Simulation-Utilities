@@ -1,16 +1,20 @@
 import json
 import os
 import random
+import stat
 import subprocess
 import sys
 import time
 from abc import abstractmethod
 from datetime import datetime
 
+from classes.EssentialLocations import EssentialDesignationExtractor
+
 
 class CodeExecution(object):
 	epicurve_filename = "epicurve.csv"
 	pansim_shell = ["time", "pansim", "simplesim"]
+	# state_file: str
 
 	"""Overridable members"""
 	rundirectory_template = ["behavior", "{ncounties}counties-fips-{fips}", "{liberal}l-{conservative}c-{fatigue}f-{fatigue_start}fs-run{run}"]
@@ -60,6 +64,8 @@ class CodeExecution(object):
 		self.name = name
 		self.is_master = is_master
 
+		# self.state_file = StateFile(self.counties).merge_from_config()
+
 		if not os.path.exists("output"):
 			os.makedirs("output")
 
@@ -92,6 +98,11 @@ class CodeExecution(object):
 			subprocess.run(locations)
 		return lid_partition, pid_partition
 
+	def ensure_exists_essential_locations(self):
+		for county in self.counties:
+			if not "locationDesignations" in self.counties[county]:
+				self.counties[county]["locationDesignations"] = EssentialDesignationExtractor().from_county(self.counties[county])
+
 	def get_base_directory(self, filename=None):
 		t = list(map(lambda x: x.format(**self.run_configuration), self.rundirectory_template))
 		if filename is not None:
@@ -123,10 +134,11 @@ class CodeExecution(object):
 					instructions.write(json.dumps(self.run_configuration))
 			else:
 				if not os.path.exists(self.get_target_file()):
-					# TODO, we can read the number of lines to see if the run was successful
 					print("Starting run ", self.run_configuration["run"], "See tail -f calibration.run.log for progress")
-					self.set_pansim_parameters()
-					self.start_run()
+					java_command_file = self.__create_java_command_file()
+					self.set_pansim_parameters(java_command_file)
+					self.start_run(java_command_file)
+					os.remove(java_command_file)
 				else:
 					print(
 						"\nRun", self.run_configuration["run"],
@@ -180,7 +192,7 @@ class CodeExecution(object):
 		self._write_csv_log(loss)
 		return loss
 
-	def set_pansim_parameters(self):
+	def set_pansim_parameters(self, java_command_file):
 		home = os.environ["HOME"]
 		path = os.environ["PATH"]
 		os.environ.clear()
@@ -199,7 +211,9 @@ class CodeExecution(object):
 		os.environ["PID_PARTITION"] = self.pid_partition
 		os.environ["PER_NODE_BEHAVIOR"] = str(1)
 		os.environ["JAVA_BEHAVIOR"] = str(1)
+		os.environ["JAVA_BEHAVIOR_SCRIPT"] = java_command_file
 		os.environ["TIMEFORMAT"] = "Simulation runtime: %E"
+		# os.environ["START_STATE_FILE"] = os.path.abspath(self.state_file)
 
 	@abstractmethod
 	def store_fitness_guess(self, x):
@@ -222,28 +236,34 @@ class CodeExecution(object):
 	def _write_csv_log(self, score):
 		pass
 
-	def start_run(self):
+	def start_run(self, java_command_file):
 		"""
 		Runs and monitors one iteration of the integrated simulation
 		Closes the Java process if something goes wrong
 		"""
-		java_process = self._start_java_background_process()
 		pansim_process = self._start_pansim_process()
-		if pansim_process.returncode != 0 or (java_process.returncode is not None and java_process.returncode != 0):
-			print(f"Failed to complete simulation. Pansim status {pansim_process.returncode}, java status {java_process.returncode}")
-			java_process.kill()
+		if pansim_process.returncode != 0:
+			print(f"Failed to complete simulation. Pansim status {pansim_process.returncode}")
+			os.remove(java_command_file)
 			exit(pansim_process.returncode)
 
-	def _start_java_background_process(self):
-		"""Executes the Java 2APL behavior model in the background"""
+	def __create_java_command_file(self):
+		fname = os.path.abspath(os.path.join(".persistent", ".tmp", f"start_behavior_model_{time.time()}.sh"))
+		with open(fname, 'w') as command_out:
+			command_out.write("#!/bin/bash\n\n")
+			command_out.write(" ".join(self._java_command()))
+		state = os.stat(fname)
+		os.chmod(fname, state.st_mode | stat.S_IEXEC)
+		return fname
+
+	def __get_agent_run_log_file(self):
 		name = self.name if self.name is None or self.name.startswith(".") else "." + self.name
 		name = "" if name is None else name
 		name = name.replace(" ", "_")
 		if self.is_master:
 			name += ".master"
-		agentrun_log = os.path.join("output", f"calibration.agents{name}.{self.start_time.strftime('%Y_%m_%dT%H_%M_%S')}.run.log")
-		with open(agentrun_log, "a") as logfile:
-			return subprocess.Popen(self._java_command(), stdout=logfile, stderr=logfile)
+		agent_run_log_file_name = f"calibration.agents{name}.{self.start_time.strftime('%Y_%m_%dT%H_%M_%S')}.run.log"
+		return os.path.abspath(os.path.join("output", agent_run_log_file_name))
 
 	def _start_pansim_process(self):
 		"""Starts PanSim"""
@@ -251,11 +271,22 @@ class CodeExecution(object):
 
 	def _java_command(self):
 		return [
-			self.java_home, f"-Xmx{self.max_heap_size}", f"-Xms{self.initial_heap_size}", "-jar", self.sim2apl_jar, "--config", self.county_configuration_file,
-			"--mode-liberal", str(self.mode_liberal), "--mode-conservative", str(self.mode_conservative), "--fatigue",
-			str(self.fatigue), "--fatigue-start", str(int(self.fatigue_start)), "-t", str(self.java_threads), "-c",
+			self.java_home,
+			f"-Xmx{self.max_heap_size}",
+			f"-Xms{self.initial_heap_size}",
+			"-XX:+UseNUMA", "-jar",
+			os.path.abspath(self.sim2apl_jar),
+			"--config", os.path.abspath(self.county_configuration_file),
+			"--mode-liberal", str(self.mode_liberal),
+			"--mode-conservative", str(self.mode_conservative),
+			"--fatigue", str(self.fatigue),
+			"--fatigue-start", str(int(self.fatigue_start)),
+			"-t", str(self.java_threads),
+			"-c",
 			"--output", self.get_base_directory()
-		] + self.get_extra_java_commands()
+		] + self.get_extra_java_commands() + [
+			">", self.__get_agent_run_log_file(), "2>&1"
+		]
 
 	def get_extra_java_commands(self):
 		"""Allows implementing sub-classes to specify additional parameters for the Java behavior model"""
