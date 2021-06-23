@@ -261,7 +261,7 @@ class CodeExecution(object):
 		if self.is_master:
 			name += ".master"
 		agent_run_log_file_name = f"calibration.agents{name}.{self.start_time.strftime('%Y_%m_%dT%H_%M_%S')}.run.log"
-		return os.path.abspath(os.path.join("output", agent_run_log_file_name))
+		return os.path.abspath(os.path.join(self.get_base_directory(), agent_run_log_file_name))
 
 	def _start_pansim_process(self):
 		"""Starts PanSim"""
