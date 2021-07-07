@@ -170,6 +170,7 @@ class CodeExecution(object):
                         "\nRun",
                         self.run_configuration["run"],
                         "already took place; skipping. Delete the directory for that run if it needs to be calculated again",
+                        self.get_target_file()
                     )
 
             if self.is_master and i >= self.n_runs - 1:
@@ -232,7 +233,7 @@ class CodeExecution(object):
         os.environ["SEED"] = str(random.randrange(sys.maxsize))
         os.environ["DISEASE_MODEL_FILE"] = self.disease_model_file
         os.environ["TICK_TIME"] = str(1)
-        os.environ["NUM_TICKS"] = str(120)  # TODO put back: str(120)
+        os.environ["NUM_TICKS"] = str(120)
         os.environ["MAX_VISITS"] = str(204000)
         os.environ["VISUAL_ATTRIBUTES"] = "coughing,mask,sdist"
         os.environ["LID_PARTITION"] = self.lid_partition

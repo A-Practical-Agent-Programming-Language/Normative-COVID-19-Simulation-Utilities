@@ -8,7 +8,7 @@ from classes.execution.CodeExecution import CodeExecution
 
 
 class DiseaseCalibration(CodeExecution):
-	rundirectory_template = ["disease", "{ncounties}counties-fips-{fips}", "{isymp}isymp-{iasymp}iasymp-{scaling-factor}scale-{liberal}l-{conservative}c-{fatigue}f-{fatigue_start}fs-run{run}"]
+	rundirectory_template = ["disease", "{ncounties}counties-fips-{fips}", "{isymp}isymp-{iasymp}iasymp-{scaling_factor}scale-{liberal}l-{conservative}c-{fatigue}f-{fatigue_start}fs-run{run}"]
 	progress_format = "[DISEASE] [{time}] {ncounties} counties ({fips}): {score} for isymp {x[0]} and iasymp {x[1]}, scaling {x[2]} disease calibration (dir={output_dir})\n"
 	csv_log = os.path.join("output", "calibration.disease.csv")
 
@@ -32,6 +32,7 @@ class DiseaseCalibration(CodeExecution):
 		x[2] = math.ceil(x[2] / 2) * 2
 		x = tuple(x)
 		if x in self.scores:
+			self.store_fitness_guess(x)
 			return self.scores[x]
 		if 0 > x[1] > x[0] > 1 or x[2] > 50:
 			return 999999999999
