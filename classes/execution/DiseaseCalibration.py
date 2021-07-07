@@ -8,8 +8,8 @@ from classes.execution.CodeExecution import CodeExecution
 
 
 class DiseaseCalibration(CodeExecution):
-	rundirectory_template = ["disease", "{ncounties}counties-fips-{fips}", "{isymp}isymp-{iasymp}iasymp-{liberal}l-{conservative}c-{fatigue}f-{fatigue_start}fs-run{run}"]
-	progress_format = "[DISEASE] [{time}] {ncounties} counties ({fips}): {score} for isymp {x[0]} and iasymp {x[1]} disease calibration (dir={output_dir})\n"
+	rundirectory_template = ["disease", "{ncounties}counties-fips-{fips}", "{isymp}isymp-{iasymp}iasymp-{scaling-factor}scale-{liberal}l-{conservative}c-{fatigue}f-{fatigue_start}fs-run{run}"]
+	progress_format = "[DISEASE] [{time}] {ncounties} counties ({fips}): {score} for isymp {x[0]} and iasymp {x[1]}, scaling {x[2]} disease calibration (dir={output_dir})\n"
 	csv_log = os.path.join("output", "calibration.disease.csv")
 
 	def __init__(self, epicurve_rmse: Epicurve_RMSE, *args, **kwargs):
@@ -43,12 +43,13 @@ class DiseaseCalibration(CodeExecution):
 	def store_fitness_guess(self, x):
 		self.run_configuration["isymp"] = x[0]
 		self.run_configuration["iasymp"] = x[1]
+		self.run_configuration["scaling_factor"] = x[2]
 
 	def prepare_simulation_run(self, x):
 		self._scale_disease_model(x)
 
 	def score_simulation_run(self, x):
-		return self.epicurve_rmse.calculate_rmse(self.get_base_directory())
+		return self.epicurve_rmse.calculate_rmse(self.run_configuration["scaling_factor"], self.get_base_directory())
 
 	def _scale_disease_model(self, x):
 		with open(self.base_disease_model, 'r') as fin:
@@ -65,7 +66,7 @@ class DiseaseCalibration(CodeExecution):
 	def _write_csv_log(self, score):
 		with open(self.csv_log, 'a') as fout:
 			fout.write(
-				"{fips},{ncounties},{score},{isymp},{iasymp},{finished_time},{starttime}\n".format(
+				"{fips},{ncounties},{score},{scaling_factor},{isymp},{iasymp},{finished_time},{starttime}\n".format(
 					score=score,
 					finished_time=datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
 					starttime=self.start_time.strftime("%Y-%m-%dT%H:%M:%S"),

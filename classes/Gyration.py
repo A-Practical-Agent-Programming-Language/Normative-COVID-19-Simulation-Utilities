@@ -96,6 +96,7 @@ class Gyration(object):
 
 		self.__cleanup_visit_tmp_data(locations_dir, output_dir, fips_code)
 		os.makedirs(locations_dir)
+		os.makedirs(output_dir)
 
 		# Keeps track of activities per day
 		locations_per_day = self._map_visits_to_days(activity_files)
