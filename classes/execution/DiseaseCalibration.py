@@ -34,12 +34,12 @@ class DiseaseCalibration(CodeExecution):
 		if x in self.scores:
 			self.store_fitness_guess(x)
 			return self.scores[x]
-		if 0 > x[1] > x[0] > 1 or x[2] > 50:
-			return 999999999999
-		else:
+		if (0 < x[1] < x[0] < 1) and x[2] <= 50:
 			score = super(DiseaseCalibration, self).calibrate(x)
 			self.scores[x] = score
 			return score
+		else:  # Not within bounds
+			return 999999999999
 
 	def store_fitness_guess(self, x):
 		self.run_configuration["isymp"] = x[0]
