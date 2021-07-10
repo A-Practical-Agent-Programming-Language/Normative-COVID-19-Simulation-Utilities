@@ -61,6 +61,11 @@ def load_toml_configuration(county_config_file):
 def ensure_location_designation_present(county):
 	if "locationDesignations" not in county:
 		county["locationDesignations"] = [EssentialDesignationExtractor().from_county(county)]
+	updated = []
+	for locdes in county["locationDesignations"]:
+		path, _ = make_file_absolute(os.curdir, locdes)
+		updated.append(path)
+	county["locationDesignations"] = updated
 	return county
 
 
