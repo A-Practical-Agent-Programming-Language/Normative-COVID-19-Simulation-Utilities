@@ -34,7 +34,7 @@ class DiseaseCalibration(CodeExecution):
 		if x in self.scores:
 			self.store_fitness_guess(x)
 			return self.scores[x]
-		if (0 < x[1] < x[0] < 1) and x[2] <= 50:
+		if (0 < x[1] < x[0] < 1) and (4 < x[2] <= 50):
 			score = super(DiseaseCalibration, self).calibrate(x)
 			self.scores[x] = score
 			return score
