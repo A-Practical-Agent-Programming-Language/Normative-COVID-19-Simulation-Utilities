@@ -37,7 +37,7 @@ class SlaveCodeExecution(CodeExecution):
 			self.rundirectory_template = self.run_configuration["run_directory_template"]
 			self.disease_model_file = self.run_configuration["disease_model_file"]
 			self.county_configuration_file = self.run_configuration["county_configuration_file"]
-			os.remove(self.__instruction_file)
+			os.rename(self.__instruction_file, self.__instruction_file + ".PROGRESS")
 
 			if not os.path.exists(self.get_target_file()):
 				# TODO, we can read the number of lines to see if the run was successful
@@ -50,6 +50,7 @@ class SlaveCodeExecution(CodeExecution):
 				print("Run already took place; skipping")
 
 			with open(self.__done_file, 'w') as done_file:
+				os.remove(self.__instruction_file + ".PROGRESS")
 				done_file.write(f"Run {self.run} finished")
 
 	def calibrate(self, x):

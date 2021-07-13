@@ -74,6 +74,13 @@ from utility.utility import *
     default=10,
     help="How many times should the simulation be run for each configuration",
 )
+@click.option(
+    "--number-of-steps",
+    "-n",
+    type=int,
+    default=120,
+    help="How many time steps should the simulation comprise of (starting March 1th 2020)"
+)
 @click.option("--name", type=str, default=None, help="Short descriptive name")
 @click.option(
     "--is-master",
@@ -135,6 +142,7 @@ def start(ctx, **kwargs):
             java_heap_size_initial=kwargs["xms"],
             output_dir=kwargs["output_dir"],
             n_runs=kwargs["number_of_runs"],
+            n_steps=kwargs["number_of_steps"],
             name=kwargs["name"],
             is_master=kwargs["is_master"],
         ),

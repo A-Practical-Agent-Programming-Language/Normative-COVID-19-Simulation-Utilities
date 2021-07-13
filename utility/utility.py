@@ -1,5 +1,6 @@
 import os
 import subprocess
+from datetime import datetime, timedelta
 
 import click
 import toml
@@ -83,3 +84,18 @@ def test_code_available(java_location):
 	else:
 		raise click.exceptions.BadArgumentUsage(
 			f"PanSim was not found. Please install PanSim before attempting calibration")
+
+
+def get_expected_end_date(toml_county_configuration: str, num_steps: int) -> datetime:
+	"""
+	Get the expected date of the last simulation date
+	Args:
+		toml_county_configuration: Location of county configuration file
+		num_steps: Number of steps this simulation runs
+
+	Returns:
+		String object of date of last expected simulation day
+	"""
+	config = toml.load(toml_county_configuration)
+	last_date = config["simulation"]["startdate"] + timedelta(days=num_steps)
+	return last_date

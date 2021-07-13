@@ -1,14 +1,16 @@
 import json
 import os
 import random
+import re
 import stat
 import subprocess
 import sys
 import time
 from abc import abstractmethod
-from datetime import datetime
+from datetime import datetime, date
 
 from classes.EssentialLocations import EssentialDesignationExtractor
+from utility.utility import get_expected_end_date
 
 
 class CodeExecution(object):
@@ -24,6 +26,9 @@ class CodeExecution(object):
     ]
     progress_format = "[BEHAVIOR: {time}] {ncounties} counties ({fips}): {score} for government attitudes liberal={x[0]}, conservative={x[1]}, fatigue={x[2]}, fatigue_start={x[3]} (dir={output_dir})\n"
     target_file = ""
+
+    # used to keep track of what other runs a master is waiting for
+    is_waiting_for = dict()
 
     def __init__(
         self,
@@ -42,6 +47,7 @@ class CodeExecution(object):
         fatigue=0.0125,
         fatigue_start=60,
         n_runs=10,
+        n_steps=120,
         epicurve_file="epicurve.csv",
         name=None,
         is_master=False,
@@ -56,6 +62,7 @@ class CodeExecution(object):
         self.sim2apl_jar = sim2apl_jar
         self.epicurve_filename = epicurve_file
         self.n_runs = n_runs
+        self.n_steps = n_steps
         self.rundirectory_template.insert(0, output_dir)
 
         self.mode_liberal = mode_liberal
@@ -85,7 +92,7 @@ class CodeExecution(object):
             fatigue=self.fatigue,
             fatigue_start=self.fatigue_start,
         )
-
+        self.last_expected_simulation_date = get_expected_end_date(self.county_configuration_file, self.n_steps)
         self.lid_partition, self.pid_partition = self.get_partitions()
         self.start_time = datetime.now()
 
@@ -115,23 +122,28 @@ class CodeExecution(object):
             subprocess.run(locations)
         return lid_partition, pid_partition
 
-    def get_base_directory(self, filename=None):
+    def get_base_directory(self, run: int = None, filename: str = None):
+        c = self.run_configuration
+        if run is not None:
+            c = self.run_configuration.copy()
+            c['run'] = run
         t = list(
             map(
-                lambda x: x.format(**self.run_configuration), self.rundirectory_template
+                lambda x: x.format(**c), self.rundirectory_template
             )
         )
         if filename is not None:
             t.append(filename)
         return os.path.join(*t)
 
-    def get_target_file(self):
-        return self.get_base_directory(self.target_file)
+    def get_target_file(self, run: int = None):
+        return self.get_base_directory(run, self.target_file)
 
     def calibrate(self, x):
         scores = list()
         self.store_fitness_guess(x)
         print("Finding loss for ", x)
+        self.is_waiting_for = dict()
         self.start_batch_time = datetime.now()
 
         for i in range(self.n_runs):
@@ -141,19 +153,7 @@ class CodeExecution(object):
             self.prepare_simulation_run(x)
 
             if self.is_master and i < self.n_runs - 1:
-                # Leave instructions for slave node
-                os.makedirs(f".persistent/.tmp/{self.name}", exist_ok=True)
-                with open(f".persistent/.tmp/{self.name}/run-{i}", "w") as instructions:
-                    self.run_configuration[
-                        "run_directory_template"
-                    ] = self.rundirectory_template
-                    self.run_configuration[
-                        "disease_model_file"
-                    ] = self.disease_model_file
-                    self.run_configuration[
-                        "county_configuration_file"
-                    ] = self.county_configuration_file
-                    instructions.write(json.dumps(self.run_configuration))
+                self.leave_instructions_or_continue(i)
             else:
                 if not os.path.exists(self.get_target_file()):
                     print(
@@ -188,12 +188,51 @@ class CodeExecution(object):
 
         return self._process_loss(x, scores)
 
+    def leave_instructions_or_continue(self, run):
+        os.makedirs(f".persistent/.tmp/{self.name}", exist_ok=True)
+        if not self.__is_run_finished(run):
+            self.is_waiting_for[run] = True
+            with open(f".persistent/.tmp/{self.name}/run-{run}", "w") as instructions:
+                self.run_configuration[
+                    "run_directory_template"
+                ] = self.rundirectory_template
+                self.run_configuration[
+                    "disease_model_file"
+                ] = self.disease_model_file
+                self.run_configuration[
+                    "county_configuration_file"
+                ] = self.county_configuration_file
+                instructions.write(json.dumps(self.run_configuration))
+        else:
+            self.is_waiting_for[run] = False
+            print("Slave", run, "is already running for or has finished with".format(**self.run_configuration), self.get_target_file(), ". Skipping")
+
+    def __is_run_finished(self, run: int):
+        """
+        Tests if the target file for the run currently specified in the run configuration exists,
+        and checks if last date occurring in the target file is equal to or greater than the date of the expected
+        last simulation day
+        Returns:
+            True if exists and finished
+        """
+        if os.path.exists(self.get_target_file(run)):
+            line = open(self.get_target_file(run), 'r').readlines()[-1]
+            if self.last_expected_simulation_date.strftime("%Y-%m-%d") in line:
+                return True
+            else:
+                try:
+                    last_date = date.fromisoformat(re.findall(r'\d{4}-\d{2}-\d{2}', line)[0])
+                    return last_date >= self.last_expected_simulation_date
+                except IndexError:
+                    return True
+        return False
+
     def __all_runs_finished(self):
         if not self.is_master:
             return True
 
         for i in range(self.n_runs - 1):
-            if not os.path.exists(f".persistent/.tmp/{self.name}/run-{i}.DONE"):
+            if i in self.is_waiting_for and self.is_waiting_for[i] and not os.path.exists(f".persistent/.tmp/{self.name}/run-{i}.DONE"):
                 return False
 
         for i in range(self.n_runs - 1):
@@ -229,11 +268,11 @@ class CodeExecution(object):
         os.environ["PATH"] = path
         os.environ["XACTOR_MAX_SEND_BUFFERS"] = str(4 * self.n_cpus)
         os.environ["XACTOR_MAX_MESSAGE_SIZE"] = str(33554432)
-        os.environ["OUTPUT_FILE"] = self.get_base_directory(self.epicurve_filename)
+        os.environ["OUTPUT_FILE"] = self.get_base_directory(None, self.epicurve_filename)
         os.environ["SEED"] = str(random.randrange(sys.maxsize))
         os.environ["DISEASE_MODEL_FILE"] = self.disease_model_file
         os.environ["TICK_TIME"] = str(1)
-        os.environ["NUM_TICKS"] = str(120)
+        os.environ["NUM_TICKS"] = str(self.n_steps)
         os.environ["MAX_VISITS"] = str(204000)
         os.environ["VISUAL_ATTRIBUTES"] = "coughing,mask,sdist"
         os.environ["LID_PARTITION"] = self.lid_partition
