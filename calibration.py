@@ -450,6 +450,15 @@ def experiment(ctx, mode_liberal, mode_conservative, fatigue, fatigue_start):
     required=True,
 )
 @click.option(
+    "--average-runs",
+    "-a",
+    type=bool,
+    help="If this flag is set to true, the average score of multiple runs will be used. Otherwise, the RMSE will be"
+         "calculated over all participating runs",
+    default=False,
+    required=False,
+)
+@click.option(
     "--mobility-index-file",
     "-m",
     type=click.Path(exists=True),
@@ -476,6 +485,7 @@ def behavior_rmse(
     mobility_index_file,
     tick_averages_file,
     sliding_window_size,
+    average_runs,
 ):
     MobilityRMSEOnBacklog(
         county_configuration,
@@ -483,6 +493,7 @@ def behavior_rmse(
         mobility_index_file,
         tick_averages_file,
         sliding_window_size,
+        average_runs,
     )
 
 
@@ -522,6 +533,7 @@ def behavior_rmse(
     help="Specify the minimum scale factor used. Any value below this will be ignored in the rankings",
     default=None,
     required=False,
+    type=int,
 )
 def disease_rmse(
     simulation_output_dir,

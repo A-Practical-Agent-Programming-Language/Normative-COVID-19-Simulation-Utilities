@@ -1,5 +1,7 @@
 import sys
 
+import numpy as np
+
 import utility.utility
 from classes.Gyration import Gyration
 from utility.utility import *
@@ -20,11 +22,13 @@ class MobilityRMSEOnBacklog(object):
         ),
         tick_averages_file_name: str = "tick-averages.csv",
         sliding_window_size: int = 7,
+        average_runs: bool = False,
     ):
         toml_file, success = utility.utility.make_file_absolute(
             os.getcwd(), county_configuration_file
         )
         conf = load_toml_configuration(toml_file)
+        self.average_runs = average_runs
 
         self.g = Gyration(
             va_gyration_mobility_index_file,
@@ -45,7 +49,10 @@ class MobilityRMSEOnBacklog(object):
     def score_runs(self):
         scored_runs = dict()
         for key, runs in self.runs.items():
-            scored_runs[key] = self.g.calculate_rmse(runs)
+            if self.average_runs:
+                scored_runs[key] = np.average([self.g.calculate_rmse([x]) for x in runs])
+            else:
+                scored_runs[key] = self.g.calculate_rmse(runs)
         return scored_runs
 
     def print_best_run(self):
@@ -74,5 +81,5 @@ if __name__ == "__main__":
     for index in range(2):
         abspath = make_file_absolute(os.getcwd(), args[index])
         args[index] = abspath[0]
-    os.chdir(os.path.join(*[".."]*2))
+    os.chdir(os.path.join(*[".."] * 2))
     MobilityRMSEOnBacklog(*args)
