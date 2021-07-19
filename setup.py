@@ -16,28 +16,29 @@ Programming Language :: Python :: 3.7
 Programming Language :: Python :: 3.8
 Topic :: Scientific/Engineering
 Topic :: System :: Distributed Computing
-""".strip().split("\n")
+""".strip().split(
+    "\n"
+)
 
 setup(
     name=package_name,
     description=description,
-    version='1.0',
-
+    version="1.0",
     zip_safe=True,
-
     entry_points="""
         [console_scripts]
         calibration=calibration:start
+        behavior_rmse=calibration:behavior_rmse
+        disease_rmse=calibration:disease_rmse
     """,
-
     use_scm_version=True,
-
     install_requires=[
         "click",
         "click_completion",
         "toml",
         "scipy",
-        "sklearn"
+        "sklearn",
+        "matplotlib",
+        "numpy",
     ],
-
 )
