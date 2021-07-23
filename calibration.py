@@ -201,12 +201,13 @@ def behavior(ctx, mobility_index_file, tick_averages_file, sliding_window_size):
     )
 
     initial_simplex = [
-        [0, 1, 0.0125, 60],
-        [1, 0, 0.0125, 60],
-        [1, 1, 0.0125, 60],
-        [0, 0, 0.0125, 60],
-        [0.5, 0.5, 0.0125, 60],
+        0.5, 0.5, 0.0125, 60,
+        0.7, 0.5, 0.0120, 40,
+        0.5, 0.7, 0.0130, 70,
+        0.3, 0.5, 0.0120, 60,
+        0.5, 0.3, 0.130, 50
     ]
+
     calibrate(bc.calibrate, initial_simplex)
 
 
@@ -265,10 +266,10 @@ def disease(
     dc = DiseaseCalibration(**args)
 
     initial_simplex = [
-        [0.00001, 0.000005, 20],
-        [0.0001, 0.00005, 20],
+        [0.00001, 0.000005, 30],
+        [0.0001, 0.00005, 50],
+        [0.000001, 0.0000005, 30],
         [0.000001, 0.0000005, 20],
-        [0.000001, 0.0000005, 10],
     ]
 
     calibrate(dc.calibrate, initial_simplex)
