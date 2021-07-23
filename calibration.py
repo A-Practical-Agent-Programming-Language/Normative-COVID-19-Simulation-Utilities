@@ -201,11 +201,11 @@ def behavior(ctx, mobility_index_file, tick_averages_file, sliding_window_size):
     )
 
     initial_simplex = [
-        0.5, 0.5, 0.0125, 60,
-        0.7, 0.5, 0.0120, 40,
-        0.5, 0.7, 0.0130, 70,
-        0.3, 0.5, 0.0120, 60,
-        0.5, 0.3, 0.130, 50
+        [0.5, 0.5, 0.0125, 60],
+        [0.7, 0.5, 0.0120, 40],
+        [0.5, 0.7, 0.0130, 70],
+        [0.3, 0.5, 0.0120, 60],
+        [0.5, 0.3, 0.130, 50]
     ]
 
     calibrate(bc.calibrate, initial_simplex)
