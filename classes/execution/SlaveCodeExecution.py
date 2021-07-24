@@ -36,6 +36,10 @@ class SlaveCodeExecution(CodeExecution):
 			self.run_configuration["run"] = self.run
 			self.rundirectory_template = self.run_configuration["run_directory_template"]
 			self.disease_model_file = self.run_configuration["disease_model_file"]
+			self.mode_liberal = self.run_configuration["liberal"]
+			self.mode_conservative = self.run_configuration["conservative"]
+			self.fatigue = self.run_configuration["fatigue"]
+			self.fatigue_start = self.run_configuration["fatigue_start"]
 			self.county_configuration_file = self.run_configuration["county_configuration_file"]
 			os.rename(self.__instruction_file, self.__instruction_file + ".PROGRESS")
 
