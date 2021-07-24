@@ -21,6 +21,13 @@ class BehaviorCalibration(CodeExecution):
 
 	def calibrate(self, x):
 		if x[0] < 0 or x[0] > 1 or x[1] < 0 or x[1] > 1:
+			# Make sure both trust parameters are between 0 and 1
+			return 999999999999
+		elif x[2] < 0 or x[2] > 1:
+			# Make sure fatigue factor is larger than 0, but smaller than 1 (which would completely remove trust in 1 step)
+			return 999999999999
+		elif x[3] < 0 or x[3] > self.n_steps:
+			# Make sure fatigue start is between 0 and number of time steps (to ensure it affects simulation)
 			return 999999999999
 		else:
 			return super(BehaviorCalibration, self).calibrate(x)
