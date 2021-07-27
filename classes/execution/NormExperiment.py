@@ -1,5 +1,6 @@
 import datetime
 import os
+from typing import List, Dict
 
 import toml
 
@@ -39,7 +40,7 @@ class NormExperiment(CodeExecution):
 	def prepare_simulation_run(self, x):
 		pass
 
-	def score_simulation_run(self, x):
+	def score_simulation_run(self, x, directories: List[Dict[int, str]]) -> float:
 		pass
 
 	def _write_csv_log(self, score):
@@ -91,7 +92,7 @@ class NormExperiment(CodeExecution):
 
 		return output_file if has_norms else ""
 
-	def _process_loss(self, x, scores):
+	def _process_loss(self, x, loss):
 		"""
 		The experiment execution does not use the calculated loss, so we can return None, but the _process_loss method
 		of super uses the numbers (None in this class) returned by score_simulation_run().

@@ -2,6 +2,7 @@ import json
 import os
 import time
 from datetime import datetime
+from typing import List, Dict
 
 from classes.execution.CodeExecution import CodeExecution
 
@@ -66,7 +67,7 @@ class SlaveCodeExecution(CodeExecution):
 	def prepare_simulation_run(self, x):
 		pass
 
-	def score_simulation_run(self, x):
+	def score_simulation_run(self, x, directories: List[Dict[int, str]]) -> float:
 		pass
 
 	def _write_csv_log(self, score):

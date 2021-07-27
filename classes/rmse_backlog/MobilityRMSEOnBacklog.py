@@ -11,6 +11,10 @@ class MobilityRMSEOnBacklog(object):
     """
     A simple script that just calculates the RMSE for the behavior model on all run outputs present in some
     directory
+
+    This script can be invoked after installing the application with the argument "behavior_rmse", or directly
+    from this script, in which case you should pass the county configuration file as the first parameter, and the
+    directory to analyse as the second
     """
 
     def __init__(
@@ -50,9 +54,9 @@ class MobilityRMSEOnBacklog(object):
         scored_runs = dict()
         for key, runs in self.runs.items():
             if self.average_runs:
-                scored_runs[key] = np.average([self.g.calculate_rmse([x]) for x in runs])
+                scored_runs[key] = np.average([self.g.calculate_rmse([{0: x}]) for x in runs])
             else:
-                scored_runs[key] = self.g.calculate_rmse(runs)
+                scored_runs[key] = self.g.calculate_rmse([dict(zip(range(len(runs)), runs))])
         return scored_runs
 
     def print_best_run(self):

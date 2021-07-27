@@ -2,6 +2,7 @@ import math
 import os
 import re
 from datetime import datetime
+from typing import List, Dict
 
 from classes.Epicurve_RMSE import Epicurve_RMSE
 from classes.execution.CodeExecution import CodeExecution
@@ -49,8 +50,8 @@ class DiseaseCalibration(CodeExecution):
 	def prepare_simulation_run(self, x):
 		self._scale_disease_model(x)
 
-	def score_simulation_run(self, x):
-		return self.epicurve_rmse.calculate_rmse(self.run_configuration["scaling_factor"], self.get_base_directory())
+	def score_simulation_run(self, x, directories: List[Dict[int, str]]) -> float:
+		return self.epicurve_rmse.calculate_rmse(self.run_configuration["scaling_factor"], directories)
 
 	def _scale_disease_model(self, x):
 		with open(self.base_disease_model, 'r') as fin:

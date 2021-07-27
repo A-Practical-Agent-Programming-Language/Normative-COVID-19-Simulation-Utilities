@@ -6,10 +6,14 @@ from collections import defaultdict
 from math import sqrt
 from typing import List, Dict, Any, Tuple
 
+import numpy as np
 from sklearn.metrics import mean_squared_error
 
 from utility.utility import load_toml_configuration
 
+Date = str
+Fips = int
+Run = int
 
 class Gyration(object):
 
@@ -84,7 +88,7 @@ class Gyration(object):
 
 			return day_averages
 
-	def _calculate_baseline_radius_of_gyration(self, activity_files: List[str], fips_code: int) -> Dict[int, float]:
+	def _calculate_baseline_radius_of_gyration(self, activity_files: List[str], fips_code: Fips) -> Dict[int, float]:
 		"""
 		Calculate the baseline for the radius of gyration for the activity files of a county, by running the calibration
 		script on each day in the activity file (7 days in total, 0 being monday, 6 being sunday) and write the
@@ -119,7 +123,7 @@ class Gyration(object):
 		return average_per_day
 
 	@staticmethod
-	def _read_tick_averages_file(tick_averages_file: str) -> Dict[int, Dict[str, List[Tuple[float, int]]]]:
+	def _read_tick_averages_file(tick_averages_file: str) -> Dict[Fips, Dict[Date, List[Tuple[float, int]]]]:
 		"""
 		Reads the file produced by the simulation of average radius of gyration for each county,
 
@@ -145,18 +149,19 @@ class Gyration(object):
 
 		return tick_values
 
-	def calculate_rmse(self, run_directories: List[str]):
+	def calculate_rmse(self, run_directories: List[Dict[Run, str]]) -> float:
 		"""
 		Calculate the Root Mean Square Error (RMSE) of a simulation run, by comparing the
 		mobility index (percentage change from the baseline for each day) of the agents to
 		that observed on the same day in real life
 		"""
-		tick_averages_list: List[Dict[int, Dict[str, List[Tuple[float, int]]]]] = [
-			self._read_tick_averages_file(os.path.join(run_directory, self._tick_averages_file_name))
+		tick_averages_list: List[Tuple[Run, Dict[Fips, Dict[Date, List[Tuple[float, int]]]]]] = [
+			(run, self._read_tick_averages_file(os.path.join(run_directory[run], self._tick_averages_file_name)))
 			for run_directory in run_directories
+			for run in run_directory
 		]
-		tick_averages = defaultdict(lambda: defaultdict(list))
-		for ta in tick_averages_list:
+		tick_averages = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
+		for run, ta in tick_averages_list:
 			for fips in ta:
 				for date in ta[fips]:
 					r = float(0)
@@ -164,23 +169,26 @@ class Gyration(object):
 					for radius, num_agents in ta[fips][date]:
 						r += (radius * num_agents)
 						n += num_agents
-					tick_averages[fips][date].append((r, n))
+					tick_averages[fips][run][date].append((r, n))
 
-		tick_averages_combined = defaultdict(dict)
+		# Combine average radius of gyration when distributed over multiple compute clusters
+		tick_averages_combined = defaultdict(lambda: defaultdict(dict))
 		for fips in tick_averages:
-			for date, averages in tick_averages[fips].items():
-				tick_averages_combined[fips][date] = sum([x[0] for x in averages]) / sum(x[1] for x in averages)
+			for run in tick_averages[fips]:
+				for date, avg_r_vals in tick_averages[fips][run].items():
+					tick_averages_combined[fips][run][date] = sum(x[0] for x in avg_r_vals) / sum(x[1] for x in avg_r_vals)
 
 		pct_reduction_predicted, pct_reduction_target, overview = self._make_mobility_index_comparison_lists(tick_averages_combined)
 
 		for run_directory in run_directories:
-			self._write_tick_averages_to_run_directory(sorted(tick_averages.keys()), overview, run_directory)
+			for run in run_directory:
+				self._write_tick_averages_to_run_directory(sorted(tick_averages.keys()), overview[run], run_directory[run])
 
 		# Calculate the RMSE by comparing the actual vs. simulated mobility indices
 		return sqrt(mean_squared_error(pct_reduction_target, pct_reduction_predicted))
 
 	@staticmethod
-	def _write_tick_averages_to_run_directory(fips_codes: List[int], overview: Dict[str, Dict[int, Dict[str, float]]], run_directory: str) -> None:
+	def _write_tick_averages_to_run_directory(fips_codes: List[Fips], overview: Dict[Date, Dict[Fips, Dict[str, float]]], run_directory: str) -> None:
 		"""
 		Stores the calculated scores next to the other data produced by the simulation
 		Args:
@@ -203,41 +211,40 @@ class Gyration(object):
 	def _try_get_radius_from_dict(fips: int, date: str, dct: Dict[int, Dict[str, float]]) -> str:
 		return dct[fips][date] if fips in dct and date in dct[fips] else ''
 
-	def _make_mobility_index_comparison_lists(self, tick_averages: Dict[int, Dict[str, float]]) -> (List[float], List[float], Dict[str, Dict[int, Dict[str, float]]]):
+	def _make_mobility_index_comparison_lists(
+			self, tick_averages: Dict[int, Dict[int, Dict[str, float]]]
+	) -> (List[float], List[float], Dict[int, Dict[str, Dict[str, float]]]):
 		"""Calculate and compare the mobility index for each day to the baseline (if present)"""
 		pct_reduction_predicted, pct_reduction_target = list(), list()
-		mobility_index_overview = dict()
+		mobility_index_overview = defaultdict(lambda: defaultdict(dict))
 
-		for fips in tick_averages.keys():
+		for fips in tick_averages:
 			day_baseline = self._get_baseline_for_county(fips)
-			dates = sorted(tick_averages[fips].keys())
+			for run in tick_averages[fips]:
+				dates = sorted(tick_averages[fips][run].keys())
 
-			for i, date in enumerate(dates):
-				if date not in mobility_index_overview:
-					mobility_index_overview[date] = dict()
-				dayofweek = datetime.date(*list(map(lambda x: int(x), date.split("-")))).weekday()
-				percent_reduction = (tick_averages[fips][date] - day_baseline[dayofweek]) / day_baseline[dayofweek] * 100.0
+				for i, date in enumerate(dates):
+					dayofweek = datetime.date(*list(map(lambda x: int(x), date.split("-")))).weekday()
+					percent_reduction = (tick_averages[fips][run][date] - day_baseline[dayofweek]) / day_baseline[dayofweek] * 100.0
 
-				mobility_index_overview[date][fips] = dict(real="", agents="", real_unsmoothed="", agents_unsmoothed=percent_reduction, agent_radius=tick_averages[fips][date])
+					mobility_index_overview[run][date][fips] = dict(real="", agents="", real_unsmoothed="", agents_unsmoothed=percent_reduction, agent_radius=tick_averages[fips][run][date])
 
-				date_in_baseline = date in self._baseline_mobility_index[fips]
-				if date_in_baseline:
-					mobility_index_overview[date][fips]["real_unsmoothed"] = self._baseline_mobility_index[fips][date]
-				else:
-					print("Missing date {0} for county FIPS {1} in va_baseline".format(date, fips))
-
-				if i >= self.sliding_window_size - 1:
-					smooth_dates = [dates[x] for x in range(i + 1 - self.sliding_window_size, i+1)]
-					smooth_agent_gyration_window = [mobility_index_overview[x][fips]["agents_unsmoothed"] for x in smooth_dates]
-					smooth_agent_gyration = sum(smooth_agent_gyration_window) / len(smooth_agent_gyration_window)
-					mobility_index_overview[date][fips]["agents"] = smooth_agent_gyration
+					date_in_baseline = date in self._baseline_mobility_index[fips]
 					if date_in_baseline:
-						smooth_real_gyration_window = list(filter(lambda x: x != "", [mobility_index_overview[x][fips]["real_unsmoothed"] for x in smooth_dates]))
-						smooth_real_gyration = sum(smooth_real_gyration_window) / len(smooth_real_gyration_window)
-						mobility_index_overview[date][fips]["real"] = smooth_real_gyration
+						mobility_index_overview[run][date][fips]["real_unsmoothed"] = self._baseline_mobility_index[fips][date]
+					else:
+						print("Missing date {0} for county FIPS {1} in va_baseline".format(date, fips))
 
-						pct_reduction_predicted.append(smooth_agent_gyration)
-						pct_reduction_target.append(smooth_real_gyration)
+					if i >= self.sliding_window_size - 1:
+						smooth_dates = [dates[x] for x in range(i + 1 - self.sliding_window_size, i+1)]
+						smooth_agent_gyration = np.average([mobility_index_overview[run][x][fips]["agents_unsmoothed"] for x in smooth_dates])
+						mobility_index_overview[run][date][fips]["agents"] = smooth_agent_gyration
+						if date_in_baseline:
+							smooth_real_gyration = np.average(list(filter(lambda x: x != "", [mobility_index_overview[run][x][fips]["real_unsmoothed"] for x in smooth_dates])))
+							mobility_index_overview[run][date][fips]["real"] = smooth_real_gyration
+
+							pct_reduction_predicted.append(smooth_agent_gyration)
+							pct_reduction_target.append(smooth_real_gyration)
 
 		return pct_reduction_predicted, pct_reduction_target, mobility_index_overview
 
@@ -331,4 +338,4 @@ if __name__ == "__main__":
 		t["counties"],
 		7
 	)
-	print(g.calculate_rmse(sys.argv[2:]))
+	print(g.calculate_rmse([dict(zip(range(len(sys.argv[2:])), sys.argv[2:]))]))

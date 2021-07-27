@@ -1,3 +1,5 @@
+from typing import List, Dict
+
 from classes.execution.CodeExecution import CodeExecution
 
 
@@ -21,7 +23,7 @@ class RepeatedExecution(CodeExecution):
 	def prepare_simulation_run(self, x):
 		pass
 
-	def score_simulation_run(self, x):
+	def score_simulation_run(self, x, directories: List[Dict[int, str]]) -> float:
 		return 0
 
 	def _write_csv_log(self, score):

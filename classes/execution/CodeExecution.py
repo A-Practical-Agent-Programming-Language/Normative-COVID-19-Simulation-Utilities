@@ -8,8 +8,8 @@ import sys
 import time
 from abc import abstractmethod
 from datetime import datetime, date
+from typing import List, Dict
 
-from classes.EssentialLocations import EssentialDesignationExtractor
 from utility.utility import get_expected_end_date
 
 
@@ -140,7 +140,6 @@ class CodeExecution(object):
         return self.get_base_directory(run, self.target_file)
 
     def calibrate(self, x):
-        scores = list()
         self.store_fitness_guess(x)
         print("Finding loss for ", x)
         self.is_waiting_for = dict()
@@ -172,21 +171,16 @@ class CodeExecution(object):
                         "already took place; skipping. Delete the directory for that run if it needs to be calculated again",
                         self.get_target_file()
                     )
-
             if self.is_master and i >= self.n_runs - 1:
                 while not self.__all_runs_finished():
                     print("Waiting for other runs to finish")
                     time.sleep(1)
 
-                for j in range(self.n_runs):
-                    self.run_configuration["run"] = j
-                    print("Calculating loss for " + self.get_target_file())
-                    scores.append(self.score_simulation_run(x))
-            elif not self.is_master:
-                print("Calculating loss for " + self.get_target_file())
-                scores.append(self.score_simulation_run(x))
+        loss = self.score_simulation_run(x, [self.get_all_run_directories()])  # Just one node for now
+        return self._process_loss(x, loss)
 
-        return self._process_loss(x, scores)
+    def get_all_run_directories(self) -> Dict[int, str]:
+        return dict([(i, self.get_base_directory(i)) for i in range(self.n_runs)])
 
     def leave_instructions_or_continue(self, run):
         os.makedirs(f".persistent/.tmp/{self.name}", exist_ok=True)
@@ -241,8 +235,7 @@ class CodeExecution(object):
 
         return True
 
-    def _process_loss(self, x, scores):
-        loss = sum(scores) / len(scores)
+    def _process_loss(self, x: tuple, loss: float):
         print("Loss for", x, "is", loss)
 
         args = dict(
@@ -281,7 +274,6 @@ class CodeExecution(object):
         os.environ["JAVA_BEHAVIOR"] = str(1)
         os.environ["JAVA_BEHAVIOR_SCRIPT"] = java_command_file
         os.environ["TIMEFORMAT"] = "Simulation runtime: %E"
-        # os.environ["START_STATE_FILE"] = os.path.abspath(self.state_file)
 
     @abstractmethod
     def store_fitness_guess(self, x):
@@ -292,7 +284,20 @@ class CodeExecution(object):
         pass
 
     @abstractmethod
-    def score_simulation_run(self, x):
+    def score_simulation_run(self, x: tuple, directories: List[Dict[int, str]]) -> float:
+        """
+        Score a set of simulation runs. The first argument is a tuple of the calibration configuration for this
+        run,
+        the second parameter is a list of dictionaries, where each dictionary contains the run directories of one or
+        more runs with the same configuration of a single compute node. If only one compute node is passed, this list
+        has size 1.
+        Args:
+            x:
+            directories:
+
+        Returns:
+
+        """
         pass
 
     @staticmethod

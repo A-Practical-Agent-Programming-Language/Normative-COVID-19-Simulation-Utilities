@@ -1,3 +1,5 @@
+from typing import List, Dict
+
 from classes.execution.CodeExecution import CodeExecution
 
 
@@ -21,13 +23,13 @@ class ScalingTestExecution(CodeExecution):
 	def prepare_simulation_run(self, x):
 		pass
 
-	def score_simulation_run(self, x):
+	def score_simulation_run(self, x, directories: List[Dict[int, str]]) -> float:
 		pass
 
 	def _write_csv_log(self, score):
 		pass
 
-	def _process_loss(self, x, scores):
+	def _process_loss(self, x, loss):
 		pass
 
 	def get_extra_java_commands(self):
