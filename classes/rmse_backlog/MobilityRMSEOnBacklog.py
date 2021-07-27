@@ -54,9 +54,13 @@ class MobilityRMSEOnBacklog(object):
         scored_runs = dict()
         for key, runs in self.runs.items():
             if self.average_runs:
-                scored_runs[key] = np.average([self.g.calculate_rmse([{0: x}]) for x in runs])
+                scored_runs[key] = np.average(
+                    [self.g.calculate_rmse([{0: x}]) for x in runs]
+                )
             else:
-                scored_runs[key] = self.g.calculate_rmse([dict(zip(range(len(runs)), runs))])
+                scored_runs[key] = self.g.calculate_rmse(
+                    [dict(zip(range(len(runs)), runs))]
+                )
         return scored_runs
 
     def print_best_run(self):

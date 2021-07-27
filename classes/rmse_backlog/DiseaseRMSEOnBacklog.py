@@ -11,10 +11,10 @@ class DiseaseRMSEOnBacklog(object):
         self,
         county_configuration_file: str,
         simulation_output_dir: str,
-        epicurve_filename: str = 'epicurve.sim2apl.csv',
-        case_file: str = os.path.join('external', 'va-counties-covid19-cases.csv'),
+        epicurve_filename: str = "epicurve.sim2apl.csv",
+        case_file: str = os.path.join("external", "va-counties-covid19-cases.csv"),
         minimum_scale: int = 4,
-        average_runs: bool = False
+        average_runs: bool = False,
     ):
         self.minimum_scale = minimum_scale
         toml_file, success = make_file_absolute(os.getcwd(), county_configuration_file)
@@ -37,9 +37,13 @@ class DiseaseRMSEOnBacklog(object):
         for key, runs in self.runs.items():
             score: float
             if self.average_runs:
-                score = np.average([self.rmse.calculate_rmse(key[2], [{0: x}]) for x in runs])
+                score = np.average(
+                    [self.rmse.calculate_rmse(key[2], [{0: x}]) for x in runs]
+                )
             else:
-                score = self.rmse.calculate_rmse(key[2], [dict(zip(range(len(runs)), runs))])
+                score = self.rmse.calculate_rmse(
+                    key[2], [dict(zip(range(len(runs)), runs))]
+                )
 
             if self.minimum_scale is not None and key[2] < self.minimum_scale:
                 score = 999999

@@ -205,7 +205,7 @@ def behavior(ctx, mobility_index_file, tick_averages_file, sliding_window_size):
         [0.7, 0.5, 0.0120, 40],
         [0.5, 0.7, 0.0130, 70],
         [0.3, 0.5, 0.0120, 60],
-        [0.5, 0.3, 0.130, 50]
+        [0.5, 0.3, 0.130, 50],
     ]
 
     calibrate(bc.calibrate, initial_simplex)
@@ -270,7 +270,9 @@ def disease(
     args["fatigue_start"] = fatigue_start
     args["epicurve_file"] = epicurve_file
 
-    args["epicurve_rmse"] = Epicurve_RMSE(ctx.obj["counties"], epicurve_file, case_data_file)
+    args["epicurve_rmse"] = Epicurve_RMSE(
+        ctx.obj["counties"], epicurve_file, case_data_file
+    )
     dc = DiseaseCalibration(**args)
 
     initial_simplex = [
@@ -463,7 +465,7 @@ def experiment(ctx, mode_liberal, mode_conservative, fatigue, fatigue_start):
     "-a",
     type=bool,
     help="If this flag is set to true, the average score of multiple runs will be used. Otherwise, the RMSE will be"
-         "calculated over all participating runs",
+    "calculated over all participating runs",
     default=False,
     required=False,
 )
@@ -530,7 +532,7 @@ def behavior_rmse(
     "-a",
     type=bool,
     help="If this flag is set to true, the average score of multiple runs will be used. Otherwise, the RMSE will be"
-         "calculated over all participating runs",
+    "calculated over all participating runs",
     default=False,
     required=False,
 )
@@ -567,7 +569,7 @@ def disease_rmse(
         default_epicurve_file_name,
         case_data_file,
         minimum_scale_factor,
-        average_runs
+        average_runs,
     )
 
 

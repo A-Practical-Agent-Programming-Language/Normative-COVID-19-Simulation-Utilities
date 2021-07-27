@@ -92,7 +92,9 @@ class CodeExecution(object):
             fatigue=self.fatigue,
             fatigue_start=self.fatigue_start,
         )
-        self.last_expected_simulation_date = get_expected_end_date(self.county_configuration_file, self.n_steps)
+        self.last_expected_simulation_date = get_expected_end_date(
+            self.county_configuration_file, self.n_steps
+        )
         self.lid_partition, self.pid_partition = self.get_partitions()
         self.start_time = datetime.now()
 
@@ -126,12 +128,8 @@ class CodeExecution(object):
         c = self.run_configuration
         if run is not None:
             c = self.run_configuration.copy()
-            c['run'] = run
-        t = list(
-            map(
-                lambda x: x.format(**c), self.rundirectory_template
-            )
-        )
+            c["run"] = run
+        t = list(map(lambda x: x.format(**c), self.rundirectory_template))
         if filename is not None:
             t.append(filename)
         return os.path.join(*t)
@@ -169,14 +167,16 @@ class CodeExecution(object):
                         "\nRun",
                         self.run_configuration["run"],
                         "already took place; skipping. Delete the directory for that run if it needs to be calculated again",
-                        self.get_target_file()
+                        self.get_target_file(),
                     )
             if self.is_master and i >= self.n_runs - 1:
                 while not self.__all_runs_finished():
                     print("Waiting for other runs to finish")
                     time.sleep(1)
 
-        loss = self.score_simulation_run(x, [self.get_all_run_directories()])  # Just one node for now
+        loss = self.score_simulation_run(
+            x, [self.get_all_run_directories()]
+        )  # Just one node for now
         return self._process_loss(x, loss)
 
     def get_all_run_directories(self) -> Dict[int, str]:
@@ -190,16 +190,22 @@ class CodeExecution(object):
                 self.run_configuration[
                     "run_directory_template"
                 ] = self.rundirectory_template
-                self.run_configuration[
-                    "disease_model_file"
-                ] = self.disease_model_file
+                self.run_configuration["disease_model_file"] = self.disease_model_file
                 self.run_configuration[
                     "county_configuration_file"
                 ] = self.county_configuration_file
                 instructions.write(json.dumps(self.run_configuration))
         else:
             self.is_waiting_for[run] = False
-            print("Slave", run, "is already running for or has finished with".format(**self.run_configuration), self.get_target_file(), ". Skipping")
+            print(
+                "Slave",
+                run,
+                "is already running for or has finished with".format(
+                    **self.run_configuration
+                ),
+                self.get_target_file(),
+                ". Skipping",
+            )
 
     def __is_run_finished(self, run: int):
         """
@@ -210,12 +216,14 @@ class CodeExecution(object):
             True if exists and finished
         """
         if os.path.exists(self.get_target_file(run)):
-            line = open(self.get_target_file(run), 'r').readlines()[-1]
+            line = open(self.get_target_file(run), "r").readlines()[-1]
             if self.last_expected_simulation_date.strftime("%Y-%m-%d") in line:
                 return True
             else:
                 try:
-                    last_date = date.fromisoformat(re.findall(r'\d{4}-\d{2}-\d{2}', line)[0])
+                    last_date = date.fromisoformat(
+                        re.findall(r"\d{4}-\d{2}-\d{2}", line)[0]
+                    )
                     return last_date >= self.last_expected_simulation_date
                 except IndexError:
                     return True
@@ -226,7 +234,11 @@ class CodeExecution(object):
             return True
 
         for i in range(self.n_runs - 1):
-            if i in self.is_waiting_for and self.is_waiting_for[i] and not os.path.exists(f".persistent/.tmp/{self.name}/run-{i}.DONE"):
+            if (
+                i in self.is_waiting_for
+                and self.is_waiting_for[i]
+                and not os.path.exists(f".persistent/.tmp/{self.name}/run-{i}.DONE")
+            ):
                 return False
 
         for i in range(self.n_runs - 1):
@@ -261,7 +273,9 @@ class CodeExecution(object):
         os.environ["PATH"] = path
         os.environ["XACTOR_MAX_SEND_BUFFERS"] = str(4 * self.n_cpus)
         os.environ["XACTOR_MAX_MESSAGE_SIZE"] = str(33554432)
-        os.environ["OUTPUT_FILE"] = self.get_base_directory(None, self.epicurve_filename)
+        os.environ["OUTPUT_FILE"] = self.get_base_directory(
+            None, self.epicurve_filename
+        )
         os.environ["SEED"] = str(random.randrange(sys.maxsize))
         os.environ["DISEASE_MODEL_FILE"] = self.disease_model_file
         os.environ["TICK_TIME"] = str(1)
@@ -284,7 +298,9 @@ class CodeExecution(object):
         pass
 
     @abstractmethod
-    def score_simulation_run(self, x: tuple, directories: List[Dict[int, str]]) -> float:
+    def score_simulation_run(
+        self, x: tuple, directories: List[Dict[int, str]]
+    ) -> float:
         """
         Score a set of simulation runs. The first argument is a tuple of the calibration configuration for this
         run,
@@ -341,15 +357,24 @@ class CodeExecution(object):
         Used for running old version of PanSim
         Returns: Sub process with behavior model
         """
-        name = self.name if self.name is None or self.name.startswith(".") else "." + self.name
+        name = (
+            self.name
+            if self.name is None or self.name.startswith(".")
+            else "." + self.name
+        )
         name = "" if name is None else name
         name = name.replace(" ", "_")
         if self.is_master:
             name += ".master"
         agentrun_log = self.__get_agent_run_log_file()
-        print("Starting behavior model background process and writing output to " + agentrun_log)
+        print(
+            "Starting behavior model background process and writing output to "
+            + agentrun_log
+        )
         with open(agentrun_log, "a") as logfile:
-            return subprocess.Popen(self._java_command(), stdout=logfile, stderr=logfile)
+            return subprocess.Popen(
+                self._java_command(), stdout=logfile, stderr=logfile
+            )
 
     def _create_java_command_file(self, suffix: str = None):
         fname = os.path.abspath(
