@@ -156,7 +156,7 @@ class CodeExecution(object):
                     print(
                         "Starting run ",
                         self.run_configuration["run"],
-                        "See tail -f calibration.run.log for progress",
+                        f"Progress recorded in\n{self.__get_agent_run_log_file()}",
                     )
                     java_command_file = self._create_java_command_file()
                     self.set_pansim_parameters(java_command_file)
@@ -274,7 +274,7 @@ class CodeExecution(object):
         os.environ["XACTOR_MAX_SEND_BUFFERS"] = str(4 * self.n_cpus)
         os.environ["XACTOR_MAX_MESSAGE_SIZE"] = str(33554432)
         os.environ["OUTPUT_FILE"] = self.get_base_directory(
-            None, self.epicurve_filename
+            None, 'epicurve.pansim.csv'
         )
         os.environ["SEED"] = str(random.randrange(sys.maxsize))
         os.environ["DISEASE_MODEL_FILE"] = self.disease_model_file
@@ -340,8 +340,8 @@ class CodeExecution(object):
         Runs and monitors one iteration of the integrated simulation
         Closes the Java process if something goes wrong
         """
-        java_process = None
-        # java_process = self.__start_java_background_process()  # TODO uncomment to run with old verison of PanSim
+        java_process: subprocess.Popen = None
+        # java_process = self.__start_java_background_process()  # TODO uncomment to run with old version of PanSim
         pansim_process = self._start_pansim_process()
         if pansim_process.returncode != 0:
             print(
@@ -352,20 +352,11 @@ class CodeExecution(object):
                 java_process.kill()
             exit(pansim_process.returncode)
 
-    def __start_java_background_process(self):
+    def __start_java_background_process(self) -> subprocess.Popen:
         """
         Used for running old version of PanSim
         Returns: Sub process with behavior model
         """
-        name = (
-            self.name
-            if self.name is None or self.name.startswith(".")
-            else "." + self.name
-        )
-        name = "" if name is None else name
-        name = name.replace(" ", "_")
-        if self.is_master:
-            name += ".master"
         agentrun_log = self.__get_agent_run_log_file()
         print(
             "Starting behavior model background process and writing output to "
@@ -436,7 +427,7 @@ class CodeExecution(object):
                 self.get_base_directory(),
             ]
             + self.get_extra_java_commands()
-            + [">", self.__get_agent_run_log_file(), "2>&1"]
+            + ["2>&1", "|", "tee", self.__get_agent_run_log_file()]
         )
 
     def get_extra_java_commands(self):
