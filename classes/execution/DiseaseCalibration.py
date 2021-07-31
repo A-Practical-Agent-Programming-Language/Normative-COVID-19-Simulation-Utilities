@@ -4,7 +4,7 @@ import re
 from datetime import datetime
 from typing import List, Dict
 
-from classes.Epicurve_RMSE import Epicurve_RMSE
+from classes.Epicurve_RMSE import EpicurveRMSE
 from classes.execution.CodeExecution import CodeExecution
 
 
@@ -17,7 +17,7 @@ class DiseaseCalibration(CodeExecution):
     progress_format = "[DISEASE] [{time}] {ncounties} counties ({fips}): {score} for isymp {x[0]} and iasymp {x[1]}, scaling {x[2]} disease calibration (dir={output_dir})\n"
     csv_log = os.path.join("output", "calibration.disease.csv")
 
-    def __init__(self, epicurve_rmse: Epicurve_RMSE, *args, **kwargs):
+    def __init__(self, epicurve_rmse: EpicurveRMSE, *args, **kwargs):
         super(DiseaseCalibration, self).__init__(*args, **kwargs)
         self.target_file = self.epicurve_filename
         self.base_disease_model = self.disease_model_file

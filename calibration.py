@@ -2,7 +2,7 @@
 import click
 from scipy.optimize import minimize
 
-from classes.Epicurve_RMSE import Epicurve_RMSE
+from classes.Epicurve_RMSE import EpicurveRMSE
 from classes.Gyration import Gyration
 from classes.execution.BehaviorCalibration import BehaviorCalibration
 from classes.execution.DiseaseCalibration import DiseaseCalibration
@@ -264,7 +264,7 @@ def disease(
     args["fatigue_start"] = fatigue_start
     args["epicurve_file"] = epicurve_file
 
-    args["epicurve_rmse"] = Epicurve_RMSE(
+    args["epicurve_rmse"] = EpicurveRMSE(
         ctx.obj["counties"], epicurve_file, case_data_file
     )
     dc = DiseaseCalibration(**args)

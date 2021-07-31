@@ -9,7 +9,7 @@ from typing import List, Dict, Any, Tuple
 import numpy as np
 from sklearn.metrics import mean_squared_error
 
-from utility.utility import load_toml_configuration
+from utility.utility import get_project_root
 
 Date = str
 Fips = int
@@ -25,8 +25,11 @@ class Gyration(object):
         sliding_window_size: int,
     ) -> None:
         self.__day_average_file_template = os.path.join(
-            ".persistent", "day-averages", "day-averages-{0}.csv"
+            os.path.join(get_project_root(), ".persistent"),
+            "day-averages",
+            "day-averages-{0}.csv",
         )
+        self.external_directory = os.path.join(get_project_root(), "external")
         self._va_gyration_mobility_index_file = va_gyration_mobility_index_file
         self._baseline_mobility_index = self._load_baseline_mobility_index()
         self._tick_averages_file_name = tick_averages_file_name
@@ -107,8 +110,12 @@ class Gyration(object):
         results to file
         """
 
-        locations_dir = os.path.join("external", "locations_{0}".format(fips_code))
-        output_dir = os.path.join("external", "output_{0}".format(fips_code))
+        locations_dir = os.path.join(
+            self.external_directory, "locations_{0}".format(fips_code)
+        )
+        output_dir = os.path.join(
+            self.external_directory, "output_{0}".format(fips_code)
+        )
 
         self.__cleanup_visit_tmp_data(locations_dir, output_dir, fips_code)
         os.makedirs(locations_dir)
@@ -128,7 +135,7 @@ class Gyration(object):
         subprocess.run(
             [
                 "python3",
-                os.path.join("external", "gyration_radius_calculator.py"),
+                os.path.join(self.external_directory, "gyration_radius_calculator.py"),
                 "-i",
                 locations_dir,
                 "-o",
@@ -459,13 +466,13 @@ class Gyration(object):
         self._remove_dir(output_dir)
         if os.path.exists(
             os.path.join(
-                "external",
+                self.external_directory,
                 "gyration_radius_calculator_locations_{0}.log".format(fips_code),
             )
         ):
             os.remove(
                 os.path.join(
-                    "external",
+                    self.external_directory,
                     "gyration_radius_calculator_locations_{0}.log".format(fips_code),
                 )
             )

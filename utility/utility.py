@@ -1,9 +1,7 @@
 import os
-import re
 import subprocess
-from collections import defaultdict
 from datetime import datetime, timedelta
-from typing import Callable, Dict
+from pathlib import Path
 
 import click
 import toml
@@ -153,112 +151,18 @@ def get_expected_end_date(toml_county_configuration: str, num_steps: int) -> dat
     return last_date
 
 
-def extract_run_configuration_from_behavior_path(
-    behavior_path: str,
-) -> Dict[str, float]:
+def make_fips_long(county_fips: int or str, state_fips: int or str = 51) -> int:
     """
-    Extract all parameter values relevant to behavior calibration from the name of a path containing a run
-    configuration. Also used in calibration.results.log
+    Given a county fips code, return the combined state and county fips code
     Args:
-        behavior_path: Path or name of run directory from which to extract parameters
+        county_fips:    The FIPS code of the state (e.g., VA has fips code 51)
+        state_fips:     The FIPS code of the county within the state
 
-    Returns:
-        Dictionary containing the values for liberal, conservative, fatigue and fatigue_start
+    Returns: Combined state and county fips code
     """
-    re_params = (
-        r"(\d+(?:\.|e-)\d+)l-(\d+(?:\.|e-)\d+)c-(\d+(?:\.|e-)\d+)f-(\d+(?:\.|e-)\d+)fs"
-    )
-    params_match = re.findall(re_params, behavior_path)
-    extracted = dict()
-    if params_match is not None and len(params_match):
-        liberal, conservative, fatigue, fatigue_start = params_match[0]
-        extracted["liberal"] = float(liberal)
-        extracted["conservative"] = float(conservative)
-        extracted["fatigue"] = float(fatigue)
-        extracted["fatigue_start"] = float(fatigue_start)
-        return extracted
+    state_fips = str(state_fips) + "0" * (5 - len(str(state_fips)))
+    return int(state_fips[: -1 * len(str(county_fips))] + str(county_fips))
 
 
-def extract_run_configuration_from_disease_path(disease_path: str) -> Dict[str, float]:
-    """
-    Extract all parameter values relevant to disease calibration from the name of a path containing a run
-    configuration. Also used in calibration.results.log
-    Args:
-        disease_path: Path or name of run directory from which to extract parameters
-
-    Returns:
-        Dictionary containing the values for isymp, iasymp, scale, liberal, conservative,fatigue, and fatigue_start
-
-    """
-    re_params = (
-        r"(\d+(?:\.|e-)\d+(?:e-\d+)?)isymp--?"
-        r"(\d+(?:\.|e-)\d+(?:e-\d+)?)iasymp-(?:-?(\d+(?:\.|e-)\d+(?:e-\d+)?)scale-)?"
-        r"(\d+(?:\.|e-)\d+(?:e-\d+)?)l-(\d+(?:\.|e-)\d+(?:e-\d+)?)c-(\d+(?:\.|e-)\d+(?:e-\d+)?)f-"
-        r"(\d+(?:(?:\.|e-)\d+)?(?:e-\d+)?)fs"
-    )
-    extracted = dict()
-    params_match = re.findall(re_params, disease_path)
-    if params_match is not None and len(params_match):
-        if len(params_match[0]) == 6:
-            # Old naming
-            isymp, iasymp, liberal, conservative, fatigue, fatigue_start = params_match[
-                0
-            ]
-            scale = 30
-        elif len(params_match[0]) == 7:
-            # new naming
-            (
-                isymp,
-                iasymp,
-                scale,
-                liberal,
-                conservative,
-                fatigue,
-                fatigue_start,
-            ) = params_match[0]
-        extracted["isymp"] = float(isymp)
-        extracted["iasymp"] = float(iasymp)
-        extracted["scale"] = float(scale)
-        extracted["liberal"] = float(liberal)
-        extracted["conservative"] = float(conservative)
-        extracted["fatigue"] = float(fatigue)
-        extracted["fatigue_start"] = float(fatigue_start)
-
-    return extracted
-
-
-def find_runs(
-    simulation_output_path: str,
-    target_file_name: str,
-    extract_config: Callable[[str], Dict[str, float]],
-    to_tuple: Callable[[Dict[str, float]], tuple],
-):
-    """
-    Get a dictionary of all simulations, multiple runs grouped by parameter configuration
-    Args:
-       simulation_output_path:  Path containing the simulation runs output
-       target_file_name:        File that should be present to calculate specific RMSE (e.g. tick averages)
-       extract_config:          Method that can extract configuration parameters from directory name
-       to_tuple:                Method that converts a dictionary of configuration parameters to tuple of only values
-
-    Returns:
-        Dictionary where the keys are tuples of configuration parameters, and values are lists of directories with
-        individual runs for those parameters
-    """
-    runs = defaultdict(list)
-    if target_file_name in os.listdir(simulation_output_path):
-        # Single run provided
-        run_config = extract_config(str(simulation_output_path))
-        if run_config is not None:
-            runs[to_tuple(run_config)].append(str(simulation_output_path))
-    else:
-        # Collection of runs, all need to be judged
-        for f in os.listdir(simulation_output_path):
-            realpath = os.path.join(simulation_output_path, f)
-            run_config = extract_config(f)
-            if run_config is not None:
-                if target_file_name in os.listdir(realpath):
-                    runs[to_tuple(run_config)].append(realpath)
-                else:
-                    print("Missing", target_file_name, "file in", f)
-    return runs
+def get_project_root():
+    return Path(__file__).parent.parent

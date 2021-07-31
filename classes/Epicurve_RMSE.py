@@ -8,14 +8,14 @@ from typing import Dict, Any, List, Tuple
 import numpy as np
 from sklearn.metrics import mean_squared_error
 
-from utility.utility import load_toml_configuration
+from utility.utility import load_toml_configuration, get_project_root
 
 Date = str
 Fips = int
 Run = int
 
 
-class Epicurve_RMSE(object):
+class EpicurveRMSE(object):
     """
     Class to calculate the RMSE between epicurve produced by the simulation with actual case data
     """
@@ -24,7 +24,9 @@ class Epicurve_RMSE(object):
         self,
         counties: [Dict[str, Dict[str, Any]]],
         epicurve_filename: str = "epicurve.sim2apl.csv",
-        case_file: str = "external/va-counties-covid19-cases.csv",
+        case_file: str = os.path.join(
+            get_project_root(), "va-counties-covid19-cases.csv"
+        ),
     ):
         self.counties = counties
         self.__epicurve_filename = epicurve_filename
@@ -32,7 +34,7 @@ class Epicurve_RMSE(object):
         self.county_case_data = self.__load_case_data()
         self.baseline = self.__create_relevant_epicurve()
 
-    def __load_case_data(self):
+    def __load_case_data(self) -> Dict[int, Dict[Date, int]]:
         """
         Load the case data available for the state
         Returns:
@@ -162,6 +164,6 @@ if __name__ == "__main__":
     t = load_toml_configuration(sys.argv[1])
 
     os.chdir("../")
-    e = Epicurve_RMSE(t["counties"])
+    e = EpicurveRMSE(t["counties"])
 
     print(e.calculate_rmse(30, [dict(zip(range(len(sys.argv[2:])), sys.argv[2:]))]))

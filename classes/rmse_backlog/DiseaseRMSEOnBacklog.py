@@ -2,7 +2,8 @@ import sys
 
 import numpy as np
 
-from classes.Epicurve_RMSE import Epicurve_RMSE
+from classes.Epicurve_RMSE import EpicurveRMSE
+from utility.run_finder import find_disease_runs
 from utility.utility import *
 
 
@@ -20,14 +21,9 @@ class DiseaseRMSEOnBacklog(object):
         toml_file, success = make_file_absolute(os.getcwd(), county_configuration_file)
         conf = load_toml_configuration(toml_file)
         self.average_runs = average_runs
-        self.rmse = Epicurve_RMSE(conf["counties"], epicurve_filename, case_file)
+        self.rmse = EpicurveRMSE(conf["counties"], epicurve_filename, case_file)
 
-        self.runs = find_runs(
-            simulation_output_dir,
-            epicurve_filename,
-            extract_run_configuration_from_disease_path,
-            self.disease_params_dict_to_tuple,
-        )
+        self.runs = find_disease_runs(simulation_output_dir)
 
         self.scored_runs = self.score_runs()
         self.print_best_run()
@@ -62,19 +58,6 @@ class DiseaseRMSEOnBacklog(object):
         )
         for path in self.runs[best_key]:
             print("\t", path)
-
-    @staticmethod
-    def disease_params_dict_to_tuple(params_dct: Dict[str, float]) -> tuple:
-        key_order = [
-            "isymp",
-            "iasymp",
-            "scale",
-            "liberal",
-            "conservative",
-            "fatigue",
-            "fatigue_start",
-        ]
-        return tuple([params_dct[x] for x in key_order])
 
 
 if __name__ == "__main__":

@@ -4,6 +4,7 @@ import numpy as np
 
 import utility.utility
 from classes.Gyration import Gyration
+from utility.run_finder import find_behavior_runs
 from utility.utility import *
 
 
@@ -41,12 +42,7 @@ class MobilityRMSEOnBacklog(object):
             sliding_window_size,
         )
 
-        self.runs = find_runs(
-            simulation_output_dir,
-            tick_averages_file_name,
-            extract_run_configuration_from_behavior_path,
-            self.behavior_params_dict_to_tuple,
-        )
+        self.runs = find_behavior_runs(simulation_output_dir)
         self.scored_runs = self.score_runs()
         self.print_best_run()
 
@@ -73,15 +69,6 @@ class MobilityRMSEOnBacklog(object):
         )
         for path in self.runs[best_key]:
             print("\t", path)
-
-    @staticmethod
-    def behavior_params_dict_to_tuple(params_dct: Dict[str, float]) -> tuple:
-        return (
-            params_dct["liberal"],
-            params_dct["conservative"],
-            params_dct["fatigue"],
-            params_dct["fatigue_start"],
-        )
 
 
 if __name__ == "__main__":
