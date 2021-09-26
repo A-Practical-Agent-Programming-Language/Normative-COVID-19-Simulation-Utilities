@@ -47,12 +47,12 @@ Date = str  # Date formatted as YYYY-MM-DD
     required=True,
 )
 @click.option(
-    "--print-table",
+    "--table-output",
     "-p",
-    type=bool,
-    default=False,
-    help="If explicitly set to true, the script will create a file containing a table with the mobility data, "
-    "and will print Tikz picture code to plot that data in LaTeX",
+    type=str,
+    default=None,
+    help="If explicitly set to true, the script will create a file containing a table with the mobility data with "
+         "the file name as passed to this argument, and will print Tikz picture code to plot that data in LaTeX",
 )
 @click.option(
     "--is-experiment",
@@ -91,7 +91,7 @@ class EpicurvePlotter(object):
         simulation_output,
         county_configuration,
         real_cases,
-        print_table,
+        table_output,
         scale_factor,
         is_experiment,
     ):
@@ -105,7 +105,7 @@ class EpicurvePlotter(object):
             merged_curves, max_agents = self.plot_unknown_experiment_runs(scale_factor)
         else:
             try:
-                merged_curves, max_agents = self.plot_extracted_calibration_runs()
+                merged_curves, max_agents, scale_factor = self.plot_extracted_calibration_runs()
             except Exception as e:
                 print(
                     "Failed to create plots. Is this the output directory of an experiment, which does not contain"
@@ -115,8 +115,8 @@ class EpicurvePlotter(object):
                 print("The expection was:")
                 raise e
 
-        if print_table:
-            self.create_data_table(scale_factor, merged_curves, max_agents)
+        if table_output is not None:
+            self.create_data_table(scale_factor, merged_curves, max_agents, table_output)
 
     def plot_extracted_calibration_runs(
         self,
@@ -127,6 +127,7 @@ class EpicurvePlotter(object):
         for configuration, run_group in configurations.items():
             rmse_group = run_finder.runs_to_rmse_list(run_group)
             rmse = self.epicurve_RMSE.calculate_rmse(configuration[2], rmse_group)
+            print("RMSE", rmse, configuration)
             isymp, iasymp, scale_factor = (
                 configuration[0],
                 configuration[1],
@@ -149,7 +150,7 @@ class EpicurvePlotter(object):
             merged_curves[configuration] = merged_curve
             max_agents = max(max_agents, max(agents))
 
-        return merged_curves, max_agents
+        return merged_curves, max_agents, scale_factor
 
     def plot_unknown_experiment_runs(
         self, scale_factor: int
@@ -327,6 +328,7 @@ class EpicurvePlotter(object):
         scale_factor: int,
         merged_curves: Dict[any, Dict[Date, Dict[str, List[int]]]],
         max_agents: int,
+        table_output: str
     ):
         start_date = datetime.date(2020, 1, 1)
         end_date = datetime.date(2020, 12, 1)
@@ -386,7 +388,7 @@ class EpicurvePlotter(object):
                     f"{name}_pct__inf",
                     f"{name}_pct__sup",
                 ]
-                for name in experiments
+                for name in map(lambda x: "-".join(map(str, x)), experiments)
             ]
             for x in sublist
         ]
@@ -397,8 +399,8 @@ class EpicurvePlotter(object):
         cases = []
         cases_pct = []
 
-        table_name = f"disease_calibration.tex"
-        with open(os.path.join(sys.argv[1], table_name), "w") as results_out:
+        table_name = table_output if table_output.endswith(".tex") else f"{table_output}.tex"
+        with open(os.path.join(self.simulation_output, table_name), "w") as results_out:
             results_out.write("\t".join(headers) + "\n")
             while start_date < end_date and index <= 182:
                 if str(start_date) in recovered_cases[name]["cases"]:
@@ -436,7 +438,7 @@ class EpicurvePlotter(object):
                 index += 1
                 start_date += delta
 
-        print("\n\nMax: ", max(y_values), max(y_values_pct))
+        print("\n\nMax real: ", max(y_values), max(y_values_pct))
         print("Max cases: ", max(cases), max(cases_pct))
         print("\n\n")
 
@@ -469,23 +471,23 @@ class EpicurvePlotter(object):
         for i, name in enumerate(experiments):
             print(f"%{name}")
             print(
-                f"\\addplot [stack plots=y, fill=none, draw=none, forget plot]   table [x=x, y={name}_pct__inf, col sep=tab]   {{data/{table_name}}} \closedcycle;"
+                f"\\addplot [stack plots=y, fill=none, draw=none, forget plot]   table [x=x, y={'-'.join(map(str, name))}_pct__inf, col sep=tab]   {{data/{table_name}}} \closedcycle;"
             )
             print(
-                f"\\addplot [stack plots=y, fill={colors[i % len(colors)]}, fill opacity=0.15, draw opacity=0, forget plot]   table [x=x, y expr=\\thisrow{{{name}_pct__sup}}-\\thisrow{{{name}_pct__inf}}, col sep=tab]   {{data/{table_name}}} \closedcycle;"
+                f"\\addplot [stack plots=y, fill={colors[i % len(colors)]}, fill opacity=0.15, draw opacity=0, forget plot]   table [x=x, y expr=\\thisrow{{{'-'.join(map(str, name))}_pct__sup}}-\\thisrow{{{'-'.join(map(str, name))}_pct__inf}}, col sep=tab]   {{data/{table_name}}} \closedcycle;"
             )
             print(
-                f"\\addplot [stack plots=y, stack dir=minus, forget plot, draw=none] table [x=x, y={name}_pct__sup] {{data/{table_name}}};"
+                f"\\addplot [stack plots=y, stack dir=minus, forget plot, draw=none] table [x=x, y={'-'.join(map(str, name))}_pct__sup] {{data/{table_name}}};"
             )
 
         print("\n\n% Draw the lines themselves")
 
         print(
-            f"\\addplot [color=blue, mark=*] table[x=x, y=cases_times_30_pct, col sep=tab, legend] {{data/{table_name}}};"
+            f"\\addplot [color=blue, mark=*] table[x=x, y=cases_times_{scale_factor}_pct, col sep=tab, legend] {{data/{table_name}}};"
         )
         for i, name in enumerate(experiments):
             print(
-                f"\\addplot [color={colors[i % len(colors)]}, mark=*] table[x=x, y={name}_pct, col sep=tab, legend] {{data/{table_name}}};"
+                f"\\addplot [color={colors[i % len(colors)]}, mark=*] table[x=x, y={'-'.join(map(str, name))}_pct, col sep=tab, legend] {{data/{table_name}}};"
             )
 
 

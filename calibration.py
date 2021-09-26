@@ -3,6 +3,7 @@ import click
 from scipy.optimize import minimize
 
 from classes.Epicurve_RMSE import EpicurveRMSE
+from classes.ExecutiveOrderOptimizer.EOOptimization import EOOptimization
 from classes.Gyration import Gyration
 from classes.execution.BehaviorCalibration import BehaviorCalibration
 from classes.execution.DiseaseCalibration import DiseaseCalibration
@@ -209,6 +210,66 @@ def behavior(ctx, mobility_index_file, tick_averages_file, sliding_window_size):
     ]
 
     calibrate(bc.calibrate, initial_simplex)
+
+
+@start.command(
+    name="optimization",
+    help="Start the optimization process with a behavior and disease models",
+)
+@click.option(
+    "--alpha",
+    "-a",
+    type=float,
+    help="Specify the alpha value for the Bayesian optimization",
+    default=0.5
+)
+@click.option(
+    "--weight",
+    "-w",
+    type=float,
+    help="Specify global societal impact weight (used to weigh impact of norms vs duration of norms)",
+    default=1.0
+)
+@click.option(
+    "--norm-weights",
+    type=click.Path(exists=True),
+    default=os.path.join(get_project_root(), "external", "norm_weights.csv"),
+    help="Specify the file containing the weights for each norm (used to weigh the impact of a norm vs. the number "
+         "of agents affected by that norm",
+    required=True
+)
+@click.option(
+    "--mode-liberal",
+    "-ml",
+    default=0.5,
+    help="Specify the mode of the government trust factor for the liberal voting agents",
+)
+@click.option(
+    "--mode-conservative",
+    "-mc",
+    default=0.5,
+    help="Specify the mode of the government trust factor for the liberal voting agents",
+)
+@click.option(
+    "--fatigue",
+    help="The fatigue factor with which the agents' trust attitude will decrease each day",
+)
+@click.option(
+    "--fatigue-start",
+    help="The start time step for decreasing the agents' trust attitude with fatigue",
+)
+@click.pass_context
+def optimization(ctx, alpha, weight, norm_weights, mode_liberal, mode_conservative, fatigue, fatigue_start):
+    EOOptimization(
+        alpha=alpha,
+        norm_weights=norm_weights,
+        societal_global_impact_weight=weight,
+        mode_liberal=mode_liberal,
+        mode_conservative=mode_conservative,
+        fatigue=fatigue,
+        fatigue_start=fatigue_start,
+        **ctx.obj['args']
+    )
 
 
 @start.command(

@@ -52,6 +52,7 @@ class MobilityPlotter(object):
         for configuration, run_group in configurations.items():
             # Ensure target file is present
             rmse = self.g.calculate_rmse(runs_to_rmse_list(run_group))
+            print("RMSE", rmse, configuration)
 
             mobilities = list()
             for run in run_group:
@@ -254,7 +255,7 @@ class MobilityPlotter(object):
                 f"\\addplot [stack plots=y, fill=none, draw=none, forget plot]   table [x=x, y={name}__inf, col sep=tab]   {{data/{table_name}}} \closedcycle;"
             )
             print(
-                f"\\addplot [stack plots=y, fill={colors[i % len(colors)]}, fill opacity=0.15, draw opacity=0, forget plot]   table [x=x, y expr=\\thisrow{{{name}__sup}}-\\thisrow{{{name}__inf}}, col sep=tab]   {{ddata/{table_name}}} \closedcycle;"
+                f"\\addplot [stack plots=y, fill={colors[i % len(colors)]}, fill opacity=0.15, draw opacity=0, forget plot]   table [x=x, y expr=\\thisrow{{{name}__sup}}-\\thisrow{{{name}__inf}}, col sep=tab]   {{data/{table_name}}} \closedcycle;"
             )
             print(
                 f"\\addplot [stack plots=y, stack dir=minus, forget plot, draw=none] table [x=x, y={name}__sup] {{data/{table_name}}};"
