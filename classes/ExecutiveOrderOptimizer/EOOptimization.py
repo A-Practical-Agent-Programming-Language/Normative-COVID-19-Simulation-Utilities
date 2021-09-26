@@ -38,6 +38,8 @@ class EOOptimization(CodeExecution):
             societal_global_impact_weight: float,
             norm_weights: str,
             alpha=0.5,
+            init_points: int = 20,
+            n_iter: int = 160,
             mode_liberal=0.5,
             mode_conservative=0.5,
             fatigue=0.0125,
@@ -54,6 +56,8 @@ class EOOptimization(CodeExecution):
         self.run_configuration["fatigue_start"] = self.fatigue_start
 
         self.alpha = alpha
+        self.init_points = init_points
+        self.n_iter = n_iter
         self.societal_global_impact_weight = societal_global_impact_weight
         self.norm_weights_file = norm_weights
         self.norm_counts = self.load_norm_application_counts()
@@ -112,7 +116,7 @@ class EOOptimization(CodeExecution):
         #  might be beneficial to increase the value of the alpha parameter.
         #  This parameters controls how much noise the GP can handle,
         #  so increase it whenever you think that extra flexibility is needed."
-        optimizer.maximize(init_points=20, n_iter=160, alpha=1e-2, n_restarts_optimizer=0)
+        optimizer.maximize(init_points=self.init_points, n_iter=self.n_iter, alpha=self.alpha, n_restarts_optimizer=0)
 
         print(optimizer.max)
         print("\nScore", optimizer.max["target"] * -1)

@@ -221,7 +221,20 @@ def behavior(ctx, mobility_index_file, tick_averages_file, sliding_window_size):
     "-a",
     type=float,
     help="Specify the alpha value for the Bayesian optimization",
-    default=0.5
+    default=1e-2
+)
+@click.option(
+    "--init_points",
+    type=int,
+    default=20,
+    help="The number of random samples the Bayesian optimization should try before iteratively improving"
+)
+@click.option(
+    "--n_iter",
+    type=int,
+    default=160,
+    help="The number of iterations the Bayesian optimization should perform after the initial random exploration before"
+         "optimization ends"
 )
 @click.option(
     "--weight",
@@ -259,9 +272,11 @@ def behavior(ctx, mobility_index_file, tick_averages_file, sliding_window_size):
     help="The start time step for decreasing the agents' trust attitude with fatigue",
 )
 @click.pass_context
-def optimization(ctx, alpha, weight, norm_weights, mode_liberal, mode_conservative, fatigue, fatigue_start):
+def optimization(ctx, alpha, init_points, n_iter, weight, norm_weights, mode_liberal, mode_conservative, fatigue, fatigue_start):
     EOOptimization(
         alpha=alpha,
+        init_points=init_points,
+        n_iter = n_iter,
         norm_weights=norm_weights,
         societal_global_impact_weight=weight,
         mode_liberal=mode_liberal,
