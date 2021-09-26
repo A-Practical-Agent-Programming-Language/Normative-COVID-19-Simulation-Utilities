@@ -286,7 +286,6 @@ def optimization(ctx, alpha, init_points, n_iter, weight, norm_weights, mode_lib
         **ctx.obj['args']
     )
 
-
 @start.command(
     name="disease",
     help="Start the disease model calibration with the liberal and conservative trust values fixed",
