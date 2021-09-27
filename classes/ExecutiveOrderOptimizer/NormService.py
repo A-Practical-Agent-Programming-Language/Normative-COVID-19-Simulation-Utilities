@@ -42,7 +42,7 @@ norms = {
     "EO0":
         [
             (1, "AllowWearMask", None),
-            (4, "EncourTelework", None)
+            (4, "EncourageTelework", None)
         ],
     "EO1":
         [
@@ -54,14 +54,16 @@ norms = {
         ],
     "EO3":
         [
-            (6, "RedBusinessCapac", "10"),
+            (6, "ReduceBusinessCapacity", "10"),
+            (2, "BusinessClosed", "7 DMV offices"),
             (8, "SmallGroups", "10,public"),
             (9, "StayHome", "age>65"),
-            (9, "StayHomeSick", None)
+            (9, "StayHomeSick", None),
+            (5, "EncourageSocialDistance", None)
         ],
     "EO4":
         [
-            (2, "BusinessClosed", "DMV;NEB"),
+            (2, "BusinessClosed", "7 DMV offices;NEB"),
             (9, "StayHome", "all"),
             (10, "TakeawayOnly", None)
         ],
@@ -69,21 +71,21 @@ norms = {
         [
             (5, "MaintainDistance", None),
             (7, "SchoolsClosed", "K12;HIGHER_EDUCATION"),
-            (8, "SmallGroups", "10,all")
+            (8, "SmallGroups", "10,PP")
         ],
     "EO6":
         [
-            (3, "EmplWearMask", None),
-            (6, "RedBusinessCapac", "50%")
+            (3, "EmployeesWearMask", None),
+            (6, "ReduceBusinessCapacity", "50%")
         ],
     "EO7":
         [
-            (11, "WearMaskPublInd", None)
+            (11, "WearMasInPublicIndoor", None)
         ],
     "EO8":
         [
             (7, "SchoolsClosed", "K12"),
-            (8, "SmallGroups", "50,all")
+            (8, "SmallGroups", "50,PP")
         ]
 }
 
@@ -131,7 +133,7 @@ def split_param_groups(norm: 'Norm') -> List['Norm']:
     norm_list = list()
     if norm.params is not None and ";" in norm.params:
         for param in norm.params.split(";"):
-            new_norm = Norm(norm.name, norm.start, norm.end, norm.index, param)
+            new_norm = Norm(norm.name, norm.start, norm.end - norm.start, norm.index, param)
             norm_list.append(new_norm)
     else:
         norm_list.append(norm)

@@ -9,7 +9,7 @@ BeachesClosed[VirginiaBeach],2
 BeachesClosed[all],2.5
 SmallGroups[100,public],3
 SmallGroups[250,PP],3
-BusinessClosed[DMV],3
+BusinessClosed[7 DMV offices],3
 ReduceBusinessHours,3
 StayHomeSick,3
 StayHome[age>65],3
@@ -22,7 +22,7 @@ ReduceBusinessCapacity[75%],5.5
 TakeawayOnly,6
 ReduceBusinessCapacity[50%],6
 ReduceBusinessCapacity[10],7
-BusinessClosed[DMV;NEB],8
+BusinessClosed[7 DMV offices;NEB],8
 ReduceHigherEducCapacity,9
 SchoolsClosed[K12],9.5
 SchoolsClosed[K12;HIGHER_EDUCATION],10

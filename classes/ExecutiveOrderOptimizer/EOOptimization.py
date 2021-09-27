@@ -3,10 +3,12 @@ import os.path
 import re
 import subprocess
 from collections import defaultdict
+from pathlib import Path
 from typing import List, Dict
 
 import bayes_opt.util
 import numpy as np
+import toml
 
 from classes.ExecutiveOrderOptimizer import NormService
 from .NormService import date_from_data_point
@@ -62,6 +64,8 @@ class EOOptimization(CodeExecution):
         self.norm_weights_file = norm_weights
         self.norm_counts = self.load_norm_application_counts()
         self.norm_weights = self.load_norm_weights()
+
+        self.county_configuration_file_base = self.county_configuration_file
 
         self.start_optimization()
 
@@ -128,7 +132,7 @@ class EOOptimization(CodeExecution):
         with open(self.norm_weights_file, 'r') as norm_weights_in:
             norm_weights_in.readline()[:-1].split(",")  # Skip header
             for line in norm_weights_in:
-                group = re.findall(r'([\w\[\],;>%]+),([\d.]+)', line)
+                group = re.findall(r'([\w \[\],;>%]+),([\d.]+)', line)
                 if group:
                     norm_weights[group[0][0]] = float(group[0][1])
         return norm_weights
@@ -149,14 +153,28 @@ class EOOptimization(CodeExecution):
             "EO7_{EO7_start}_{EO7_duration}-EO8_{EO8_start}_{EO8_duration}.csv".format(**x)
         )
 
-        if not os.path.exists(self.csv_log):
-            with open(self.csv_log, "a") as fout:
-                fout.write(
-                    "fips,#counties,score,x,time_finished,calibration_start_time\n"
-                )
-
     def prepare_simulation_run(self, x):
+        x = self.normalize_params(x)
         self.run_configuration['norm_schedule'].write_to_file(self.run_configuration['policy_schedule_name'])
+        toml_config = toml.load(self.county_configuration_file_base)
+        toml_config['simulation']['norms'] = self.run_configuration['policy_schedule_name']
+
+        self.county_configuration_file = os.path.join(
+            get_project_root(),
+            ".persistent",
+            'policies',
+            'configuration',
+            "norm-schedule-policy-EO0_{EO0_start}_{EO0_duration}-"
+            "EO1_{EO1_start}_{EO1_duration}-EO2_{EO2_start}_{EO2_duration}-"
+            "EO3_{EO3_start}_{EO3_duration}-EO4_{EO4_start}_{EO4_duration}-"
+            "EO5_{EO5_start}_{EO5_duration}-EO6_{EO6_start}_{EO6_duration}-"
+            "EO7_{EO7_start}_{EO7_duration}-EO8_{EO8_start}_{EO8_duration}.toml".format(**x)
+        )
+
+        os.makedirs(Path(self.county_configuration_file).parent.absolute(), exist_ok=True)
+
+        with open(self.county_configuration_file, 'w') as new_conf_out:
+            toml.dump(toml_config, new_conf_out)
 
     def score_simulation_run(self, x: Dict[str, float], directories: List[Dict[int, str]]) -> float:
         fitness = 0

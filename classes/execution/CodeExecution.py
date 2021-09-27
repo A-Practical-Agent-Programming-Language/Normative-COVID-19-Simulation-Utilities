@@ -104,8 +104,7 @@ class CodeExecution(object):
         lid_partition = os.path.join(".persistent", dir_name, "lid" + fname)
         pid_partition = os.path.join(".persistent", dir_name, "pid" + fname)
         locations = [
-            "pansim",
-            "partition",
+            "pansim-partition",
             "-l",
             lid_partition,
             "-p",
@@ -121,7 +120,11 @@ class CodeExecution(object):
             )
         if not os.path.exists(lid_partition) or not os.path.exists(pid_partition):
             os.makedirs(os.path.join(".persistent", dir_name), exist_ok=True)
-            subprocess.run(locations)
+            result = subprocess.run(locations, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            if result.returncode != 0:
+                print("Something went wrong with creating the location and person partition files:")
+                print(result.stderr)
+                exit(result.returncode)
         return lid_partition, pid_partition
 
     def get_base_directory(self, run: int = None, filename: str = None):

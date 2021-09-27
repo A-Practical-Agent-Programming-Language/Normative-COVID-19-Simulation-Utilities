@@ -28,10 +28,7 @@ class NormSchedule(object):
             start, duration = x[f'EO{i}_start'], x[f'EO{i}_duration']
             for norm in norms[f'EO{i}']:
                 norm_obj = Norm(norm[1], start, duration, norm[0], norm[2])
-                norm_string = norm[1]
-                if norm[2]:
-                    norm_string += f"[{norm[2]}]"
-                grouped_norms[norm_string].append(norm_obj)
+                grouped_norms[norm[1]].append(norm_obj)
 
         return grouped_norms
 
@@ -54,14 +51,20 @@ class NormSchedule(object):
             else:
                 norm1 = overlapping[0]
                 norm2 = overlapping[1]
-                if norm1.end > norm2.end:
-                    norm3 = Norm(norm1.name, norm2.end, norm1.end, norm1.index, norm1.params)
-                    overlapping.append(norm3)
-                norm1.end = norm2.start
-                if norm1.start == norm1.end:
+                if norm1.params == norm2.params:
                     overlapping.pop(0)
+                    norm2.start = min(norm1.start, norm2.start)
+                    norm2.end = max(norm1.end, norm2.end)
+                    overlapping[0] = norm2
                 else:
-                    overlapping[0] = norm1
+                    if norm1.end > norm2.end:
+                        norm3 = Norm(norm1.name, norm2.end, norm1.end - norm2.end, norm1.index, norm1.params)
+                        overlapping.append(norm3)
+                    norm1.end = norm2.start
+                    if norm1.start == norm1.end:
+                        overlapping.pop(0)
+                    else:
+                        overlapping[0] = norm1
                 updated_norm_list += NormSchedule._resolve_norm_list(overlapping)
 
         return updated_norm_list
@@ -121,8 +124,10 @@ class NormSchedule(object):
             for norm_event in sorted(list(self.norm_events.keys())):
                 for norm_instance in self.norm_events[norm_event]['start']:
                     for norm in split_param_groups(norm_instance):
-                        fout.write(f"{norm.start_date},{norm.name},{norm.end_date},"
-                                   f"{norm.params if norm.params is not None else ''}\n")
+                        fout.write(f"{norm.start_date},{norm.name},{norm.end_date},")
+                        if norm.params is not None:
+                            fout.write(f'"{norm.params}"')
+                        fout.write(",\n")
 
 
 def test_norm_resolution():
