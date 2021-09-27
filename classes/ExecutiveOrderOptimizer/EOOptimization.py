@@ -183,7 +183,7 @@ class EOOptimization(CodeExecution):
             affected_agents = self.find_number_of_agents_affected_by_norm(norm, directories)
             norm_weight = self.norm_weights[norm]
             fitness += (active_duration * norm_weight * affected_agents)
-        return self.count_infected_agents(directories) + (self.societal_global_impact_weight * fitness)
+        return self.count_infected_agents(directories) + (self.societal_global_impact_weight * fitness / len(self.norm_counts))
 
     def _write_csv_log(self, score):
         pass
