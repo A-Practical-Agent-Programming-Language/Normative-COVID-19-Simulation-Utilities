@@ -273,6 +273,17 @@ def behavior(ctx, mobility_index_file, tick_averages_file, sliding_window_size):
 )
 @click.pass_context
 def optimization(ctx, alpha, init_points, n_iter, weight, norm_weights, mode_liberal, mode_conservative, fatigue, fatigue_start):
+    click.echo("Starting policy optimization")
+    print("Alpha: ", alpha)
+    print("init points:", init_points)
+    print("n iters:", n_iter)
+    print("weight:", weight)
+    print("Norm weights file: ", norm_weights)
+    print("mode liberal:", mode_liberal)
+    print("mode conservative:", mode_conservative),
+    print("fatigue:", fatigue)
+    print("fatigue start:", fatigue_start)
+    print(ctx)
     EOOptimization(
         alpha=alpha,
         init_points=init_points,

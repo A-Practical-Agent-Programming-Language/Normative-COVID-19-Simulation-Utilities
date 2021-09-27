@@ -49,7 +49,9 @@ class EOOptimization(CodeExecution):
             *args,
             **kwargs
     ):
+        print("Initializing code execution object")
         super(EOOptimization, self).__init__(*args, **kwargs)
+        print("Initializing EO optimization")
         self.mode_liberal, self.mode_conservative = mode_liberal, mode_conservative
         self.fatigue, self.fatigue_start = fatigue, fatigue_start
         self.run_configuration["liberal"] = self.mode_liberal
@@ -91,6 +93,7 @@ class EOOptimization(CodeExecution):
         return super(EOOptimization, self).calibrate(x)
 
     def start_optimization(self):
+        print("Setup completed. Creating Bayesian optimizer")
         optimizer = BayesianOptimization(
             f=self.calibrate,  # self.simple_test_f,  # flip around for quick test
             pbounds=NormService.get_bounds(),
@@ -116,6 +119,8 @@ class EOOptimization(CodeExecution):
         optimizer.subscribe(Events.OPTIMIZATION_STEP, _logger)
         optimizer.subscribe(Events.OPTIMIZATION_END, _logger)
 
+        print("Starting maximization process using Bayesian optimizer")
+
         # "When dealing with functions with discrete parameters,or particularly erratic target space it
         #  might be beneficial to increase the value of the alpha parameter.
         #  This parameters controls how much noise the GP can handle,
@@ -128,6 +133,7 @@ class EOOptimization(CodeExecution):
             print("\t", key, val)
 
     def load_norm_weights(self) -> Dict[str, float]:
+        print("Loading norm weights")
         norm_weights = dict()
         with open(self.norm_weights_file, 'r') as norm_weights_in:
             norm_weights_in.readline()[:-1].split(",")  # Skip header
@@ -222,6 +228,7 @@ class EOOptimization(CodeExecution):
             date = datetime.datetime.strptime(date_from_data_point(data_point), "%Y-%m-%d")
 
     def load_norm_application_counts(self):
+        print("Loading norm application counts")
         filename = os.path.abspath(
             os.path.join(
                 get_project_root(),
