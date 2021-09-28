@@ -33,7 +33,6 @@ class EOOptimization(CodeExecution):
     ]
     progress_format = "[OPTIMIZATION] [{time}] {ncounties} counties ({fips}): {score} for x={x} policy optimization (dir={output_dir})\n"
     csv_log = os.path.join(get_project_root(), "output", "optimization.results.csv")
-    json_log = os.path.join(get_project_root(), "output", "optimization-logs.json")
 
     def __init__(
             self,
@@ -46,12 +45,11 @@ class EOOptimization(CodeExecution):
             mode_conservative=0.5,
             fatigue=0.0125,
             fatigue_start=60,
+            log_location=None,
             *args,
             **kwargs
     ):
-        print("Initializing code execution object")
         super(EOOptimization, self).__init__(*args, **kwargs)
-        print("Initializing EO optimization")
         self.mode_liberal, self.mode_conservative = mode_liberal, mode_conservative
         self.fatigue, self.fatigue_start = fatigue, fatigue_start
         self.run_configuration["liberal"] = self.mode_liberal
@@ -67,6 +65,14 @@ class EOOptimization(CodeExecution):
         self.norm_weights = self.load_norm_weights()
         self.norm_counts = self.load_norm_application_counts()
         self.county_configuration_file_base = self.county_configuration_file
+
+        self.json_log = os.path.join(
+            get_project_root(),
+            "output",
+            f"optimization-alpha{self.alpha}-{self.norm_weights_file}-weight{self.societal_global_impact_weight}.json"
+        )
+        if log_location is not None:
+            self.json_log = log_location
 
     def simple_test_f(self, **x):
         """
@@ -90,7 +96,6 @@ class EOOptimization(CodeExecution):
         return super(EOOptimization, self).calibrate(x)
 
     def start_optimization(self):
-        print("Creating Bayesian optimizer")
         optimizer = BayesianOptimization(
             f=self.calibrate,  # self.simple_test_f,  # flip around for quick test
             pbounds=NormService.get_bounds(),
@@ -100,6 +105,9 @@ class EOOptimization(CodeExecution):
 
         if os.path.exists(self.json_log):
             bayes_opt.util.load_logs(optimizer, [self.json_log])
+        else:
+            with open(self.json_log, 'w') as outf:
+                outf.write("")
 
         # From documentation:
         #   "By default the previous data in the json file is removed. If you want to keep working with the same logger,
@@ -130,7 +138,6 @@ class EOOptimization(CodeExecution):
             print("\t", key, val)
 
     def load_norm_weights(self) -> Dict[str, float]:
-        print("Loading norm weights")
         norm_weights = dict()
         with open(self.norm_weights_file, 'r') as norm_weights_in:
             norm_weights_in.readline()[:-1].split(",")  # Skip header
@@ -225,7 +232,6 @@ class EOOptimization(CodeExecution):
             date = datetime.datetime.strptime(date_from_data_point(data_point), "%Y-%m-%d")
 
     def load_norm_application_counts(self):
-        print("Loading norm application counts")
         filename = os.path.abspath(
             os.path.join(
                 get_project_root(),

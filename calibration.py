@@ -265,11 +265,19 @@ def behavior(ctx, mobility_index_file, tick_averages_file, sliding_window_size):
 )
 @click.option(
     "--fatigue",
+    type=float,
     help="The fatigue factor with which the agents' trust attitude will decrease each day",
 )
 @click.option(
     "--fatigue-start",
+    type=int,
     help="The start time step for decreasing the agents' trust attitude with fatigue",
+)
+@click.option(
+    "--log-location",
+    type=click.Path(exists=False),
+    help="Specify where the history (json format) will be logged",
+    required=False
 )
 @click.pass_context
 def optimization(
@@ -282,19 +290,10 @@ def optimization(
         mode_liberal,
         mode_conservative,
         fatigue,
-        fatigue_start
+        fatigue_start,
+        log_location
 ):
     click.echo("Starting policy optimization")
-    print("Alpha: ", alpha)
-    print("init points:", init_points)
-    print("n iters:", n_iter)
-    print("weight:", weight)
-    print("Norm weights file: ", norm_weights)
-    print("mode liberal:", mode_liberal)
-    print("mode conservative:", mode_conservative),
-    print("fatigue:", fatigue)
-    print("fatigue start:", fatigue_start)
-    print(ctx.obj['args'])
     eo = EOOptimization(
         alpha=alpha,
         init_points=init_points,
@@ -305,10 +304,9 @@ def optimization(
         mode_conservative=mode_conservative,
         fatigue=fatigue,
         fatigue_start=fatigue_start,
+        log_location=log_location,
         **ctx.obj['args']
     )
-
-    print(eo)
 
     eo.start_optimization()
 
