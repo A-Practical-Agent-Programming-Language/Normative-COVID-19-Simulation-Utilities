@@ -272,7 +272,18 @@ def behavior(ctx, mobility_index_file, tick_averages_file, sliding_window_size):
     help="The start time step for decreasing the agents' trust attitude with fatigue",
 )
 @click.pass_context
-def optimization(ctx, alpha, init_points, n_iter, weight, norm_weights, mode_liberal, mode_conservative, fatigue, fatigue_start):
+def optimization(
+        ctx,
+        alpha,
+        init_points,
+        n_iter,
+        weight,
+        norm_weights,
+        mode_liberal,
+        mode_conservative,
+        fatigue,
+        fatigue_start
+):
     click.echo("Starting policy optimization")
     print("Alpha: ", alpha)
     print("init points:", init_points)
@@ -283,11 +294,11 @@ def optimization(ctx, alpha, init_points, n_iter, weight, norm_weights, mode_lib
     print("mode conservative:", mode_conservative),
     print("fatigue:", fatigue)
     print("fatigue start:", fatigue_start)
-    print(ctx)
-    EOOptimization(
+    print(ctx.obj['args'])
+    eo = EOOptimization(
         alpha=alpha,
         init_points=init_points,
-        n_iter = n_iter,
+        n_iter=n_iter,
         norm_weights=norm_weights,
         societal_global_impact_weight=weight,
         mode_liberal=mode_liberal,
@@ -296,6 +307,10 @@ def optimization(ctx, alpha, init_points, n_iter, weight, norm_weights, mode_lib
         fatigue_start=fatigue_start,
         **ctx.obj['args']
     )
+
+    print(eo)
+
+    eo.start_optimization()
 
 @start.command(
     name="disease",

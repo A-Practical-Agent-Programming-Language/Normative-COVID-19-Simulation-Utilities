@@ -64,12 +64,9 @@ class EOOptimization(CodeExecution):
         self.n_iter = n_iter
         self.societal_global_impact_weight = societal_global_impact_weight
         self.norm_weights_file = norm_weights
-        self.norm_counts = self.load_norm_application_counts()
         self.norm_weights = self.load_norm_weights()
-
+        self.norm_counts = self.load_norm_application_counts()
         self.county_configuration_file_base = self.county_configuration_file
-
-        self.start_optimization()
 
     def simple_test_f(self, **x):
         """
@@ -93,7 +90,7 @@ class EOOptimization(CodeExecution):
         return super(EOOptimization, self).calibrate(x)
 
     def start_optimization(self):
-        print("Setup completed. Creating Bayesian optimizer")
+        print("Creating Bayesian optimizer")
         optimizer = BayesianOptimization(
             f=self.calibrate,  # self.simple_test_f,  # flip around for quick test
             pbounds=NormService.get_bounds(),
@@ -244,7 +241,7 @@ class EOOptimization(CodeExecution):
             self.get_base_directory = lambda: os.path.abspath(os.path.join(get_project_root(), '.persistent'))
             java_command = self._java_command()
             java_command = java_command[:java_command.index('2>&1')]
-            subprocess.run(java_command, stderr=subprocess.PIPE)
+            subprocess.run(java_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             self.get_extra_java_commands = lambda: []
             self.get_base_directory = base_dir_func_backup
 
