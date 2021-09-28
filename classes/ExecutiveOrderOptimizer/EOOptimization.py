@@ -62,6 +62,8 @@ class EOOptimization(CodeExecution):
         self.n_iter = n_iter
         self.societal_global_impact_weight = societal_global_impact_weight
         self.norm_weights_file = norm_weights
+        norm_weights_file_name = os.path.basename(norm_weights)
+        self.norm_weights_file_name = norm_weights_file_name[:norm_weights_file_name.rindex(".")]
         self.norm_weights = self.load_norm_weights()
         self.norm_counts = self.load_norm_application_counts()
         self.county_configuration_file_base = self.county_configuration_file
@@ -69,7 +71,7 @@ class EOOptimization(CodeExecution):
         self.json_log = os.path.join(
             get_project_root(),
             "output",
-            f"optimization-alpha{self.alpha}-{self.norm_weights_file}-weight{self.societal_global_impact_weight}.json"
+            f"optimization-alpha{self.alpha}-{self.norm_weights_file_name}-weight{self.societal_global_impact_weight}.json"
         )
         if log_location is not None:
             self.json_log = log_location
@@ -155,7 +157,7 @@ class EOOptimization(CodeExecution):
             get_project_root(),
             '.persistent',
             'policies',
-            # TODO: FIx
+            f'{self.alpha}-{self.societal_global_impact_weight}-{self.norm_weights_file_name}',
             "norm-schedule-policy-EO0_{EO0_start}_{EO0_duration}-"
             "EO1_{EO1_start}_{EO1_duration}-EO2_{EO2_start}_{EO2_duration}-"
             "EO3_{EO3_start}_{EO3_duration}-EO4_{EO4_start}_{EO4_duration}-"
@@ -173,6 +175,7 @@ class EOOptimization(CodeExecution):
             get_project_root(),
             ".persistent",
             'policies',
+            f'{self.alpha}-{self.societal_global_impact_weight}-{self.norm_weights_file_name}',
             'configuration',
             "norm-schedule-policy-EO0_{EO0_start}_{EO0_duration}-"
             "EO1_{EO1_start}_{EO1_duration}-EO2_{EO2_start}_{EO2_duration}-"
