@@ -279,6 +279,20 @@ def behavior(ctx, mobility_index_file, tick_averages_file, sliding_window_size):
     help="Specify where the history (json format) will be logged",
     required=False
 )
+@click.option(
+    "--n-slaves",
+    type=int,
+    default=0,
+    help="Specify the number of instantiated slaves",
+    required=False
+)
+@click.option(
+    "--slave-number",
+    type=int,
+    default=0,
+    help="Specify the unique number of this slave run. Must be between 0 and number of slaves specified to master",
+    required=False
+)
 @click.pass_context
 def optimization(
         ctx,
@@ -291,10 +305,12 @@ def optimization(
         mode_conservative,
         fatigue,
         fatigue_start,
-        log_location
+        log_location,
+        n_slaves,
+        slave_number
 ):
     click.echo("Starting policy optimization")
-    eo = EOOptimization(
+    EOOptimization(
         alpha=alpha,
         init_points=init_points,
         n_iter=n_iter,
@@ -305,10 +321,11 @@ def optimization(
         fatigue=fatigue,
         fatigue_start=fatigue_start,
         log_location=log_location,
+        n_slaves=n_slaves,
+        slave_number=slave_number,
         **ctx.obj['args']
     )
 
-    eo.start_optimization()
 
 @start.command(
     name="disease",

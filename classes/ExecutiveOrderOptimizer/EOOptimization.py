@@ -1,31 +1,30 @@
 import datetime
+import json
 import os.path
 import re
 import subprocess
-from collections import defaultdict
+import time
 from pathlib import Path
 from typing import List, Dict
 
-import bayes_opt.util
-import numpy as np
 import toml
+from bayes_opt import BayesianOptimization
+from bayes_opt.event import Events
+from bayes_opt.logger import JSONLogger, ScreenLogger
+from bayes_opt.util import UtilityFunction
 
 from classes.ExecutiveOrderOptimizer import NormService
-from .NormService import date_from_data_point
+from classes.ExecutiveOrderOptimizer.EOEvaluator import EOEvaluator
 from classes.ExecutiveOrderOptimizer.NormSchedule import NormSchedule
 from classes.execution.CodeExecution import CodeExecution
 from utility.utility import get_project_root
-
-from bayes_opt import BayesianOptimization
-from bayes_opt.logger import JSONLogger, ScreenLogger
-from bayes_opt.event import Events
+from .NormService import date_from_data_point
 
 
 class EOOptimization(CodeExecution):
     rundirectory_template = [
         "optimization",
-        "{ncounties}counties-fips-{fips}",
-        "{liberal}l-{conservative}c-{fatigue}f-{fatigue_start}fs-run{run}-EO0_{x[EO0_start]}_{x[EO0_duration]}-"
+        "EO0_{x[EO0_start]}_{x[EO0_duration]}-"
         "EO1_{x[EO1_start]}_{x[EO1_duration]}-EO2_{x[EO2_start]}_{x[EO2_duration]}-"
         "EO3_{x[EO3_start]}_{x[EO3_duration]}-EO4_{x[EO4_start]}_{x[EO4_duration]}-"
         "EO5_{x[EO5_start]}_{x[EO5_duration]}-EO6_{x[EO6_start]}_{x[EO6_duration]}-"
@@ -46,6 +45,8 @@ class EOOptimization(CodeExecution):
             fatigue=0.0125,
             fatigue_start=60,
             log_location=None,
+            n_slaves=0,
+            slave_number=None,
             *args,
             **kwargs
     ):
@@ -64,9 +65,12 @@ class EOOptimization(CodeExecution):
         self.norm_weights_file = norm_weights
         norm_weights_file_name = os.path.basename(norm_weights)
         self.norm_weights_file_name = norm_weights_file_name[:norm_weights_file_name.rindex(".")]
-        self.norm_weights = self.load_norm_weights()
+        self.norm_weights = self.load_norm_weights(self.norm_weights_file)
         self.norm_counts = self.load_norm_application_counts()
         self.county_configuration_file_base = self.county_configuration_file
+        self.rundirectory_template.insert(2, self.name)
+
+        self.evaluator = EOEvaluator(societal_global_impact_weight, self.norm_weights, self.norm_counts)
 
         self.json_log = os.path.join(
             get_project_root(),
@@ -75,6 +79,14 @@ class EOOptimization(CodeExecution):
         )
         if log_location is not None:
             self.json_log = log_location
+
+        self.n_slaves = n_slaves
+        self.slave_number = slave_number
+
+        if self.is_master:
+            self.start_optimization()
+        else:
+            self.iterate_as_slave()
 
     def simple_test_f(self, **x):
         """
@@ -87,7 +99,8 @@ class EOOptimization(CodeExecution):
             val += (i+1) * int(round(x[keys[i]]))
         return -1 * val
 
-    def normalize_params(self, x):
+    @staticmethod
+    def normalize_params(x):
         new_x = dict()
         for key, val in x.items():
             new_x[key] = int(round(val))
@@ -99,17 +112,17 @@ class EOOptimization(CodeExecution):
 
     def start_optimization(self):
         optimizer = BayesianOptimization(
-            f=self.calibrate,  # self.simple_test_f,  # flip around for quick test
+            f=None,  #self.calibrate,  # self.simple_test_f,  # flip around for quick test
             pbounds=NormService.get_bounds(),
             random_state=42,
             verbose=1
         )
 
-        if os.path.exists(self.json_log):
-            bayes_opt.util.load_logs(optimizer, [self.json_log])
-        else:
-            with open(self.json_log, 'w') as outf:
-                outf.write("")
+        # if os.path.exists(self.json_log):
+        #     bayes_opt.util.load_logs(optimizer, [self.json_log])
+        # else:
+        #     with open(self.json_log, 'w') as outf:
+        #         outf.write("")
 
         # From documentation:
         #   "By default the previous data in the json file is removed. If you want to keep working with the same logger,
@@ -132,16 +145,160 @@ class EOOptimization(CodeExecution):
         #  might be beneficial to increase the value of the alpha parameter.
         #  This parameters controls how much noise the GP can handle,
         #  so increase it whenever you think that extra flexibility is needed."
-        optimizer.maximize(init_points=self.init_points, n_iter=self.n_iter, alpha=self.alpha, n_restarts_optimizer=0)
+        # optimizer.maximize(init_points=self.init_points, n_iter=self.n_iter, alpha=self.alpha, n_restarts_optimizer=0)
+        self.maximize(
+            optimizer=optimizer,
+            init_points=self.init_points,
+            n_iter=self.n_iter,
+            alpha=self.alpha,
+            n_restarts_optimizer=0
+        )
 
         print(optimizer.max)
         print("\nScore", optimizer.max["target"] * -1)
         for key, val in self.normalize_params(optimizer.max['params']).items():
             print("\t", key, val)
 
-    def load_norm_weights(self) -> Dict[str, float]:
+    data_points: Dict[str, float] = dict()
+
+    def maximize(self,
+                 optimizer: BayesianOptimization,
+                 init_points=5,
+                 n_iter=25,
+                 acq='ucb',
+                 kappa=2.576,
+                 kappa_decay=1,
+                 kappa_decay_delay=0,
+                 xi=0.0,
+                 **gp_params):
+        """Mazimize your function"""
+        optimizer._prime_subscriptions()
+        optimizer.dispatch(Events.OPTIMIZATION_START)
+        optimizer._prime_queue(init_points)
+        optimizer.set_gp_params(**gp_params)
+
+        util = UtilityFunction(
+            kind=acq,
+            kappa=kappa,
+            xi=xi,
+            kappa_decay=kappa_decay,
+            kappa_decay_delay=kappa_decay_delay
+        )
+        iteration = 0
+        while not optimizer._queue.empty or iteration < n_iter:
+            to_probe, number_probed = self.probe_n(optimizer, util, self.n_slaves + 1)
+            for i in range(self.n_slaves):
+                self.leave_instructions(i, to_probe[i])
+
+            self.do_optimization_simulation(to_probe[-1])
+            self.deal_with_run(optimizer, to_probe[-1])
+
+            while not self.all_runs_finished(optimizer):
+                print("Waiting for other runs to finish")
+                time.sleep(30)
+
+            iteration += number_probed
+
+        optimizer.dispatch(Events.OPTIMIZATION_END)
+
+    def probe_n(self, optimizer, util: UtilityFunction, n):
+        x_probes = list()
+        probed = 0
+        for _ in range(n):
+            try:
+                x_probe = dict(zip(optimizer._space._keys, next(optimizer._queue)))
+            except StopIteration:
+                util.update_params()
+                x_probe = optimizer.suggest(util)
+                probed += 1
+
+            params = self.normalize_params(x_probe)
+            self.store_fitness_guess(params)
+            if self.run_configuration['policy_schedule_name'] in self.data_points:
+                optimizer.register(x_probe, self.data_points[self.run_configuration['policy_schedule_name']])
+                print("Params already tested", params)
+                probed -= 1
+            else:
+                x_probes.append(x_probe)
+
+            if optimizer._bounds_transformer:
+                optimizer.set_bounds(
+                    optimizer._bounds_transformer.transform(optimizer._space))
+
+        return x_probes, probed
+
+    def all_runs_finished(self, optimizer: BayesianOptimization):
+        instruction_dir = os.path.join(get_project_root(), ".persistent", ".tmp", self.name)
+        for i in range(self.n_slaves):
+            if not os.path.exists(os.path.join(instruction_dir, f"run-{i}.done")):
+                return False
+
+        for i in range(self.n_slaves):
+            with open(os.path.join(instruction_dir, f"run-{i}.done")) as f_in:
+                self.deal_with_run(optimizer, json.loads(f_in.read()))
+
+        return True
+
+    def deal_with_run(self, optimizer: BayesianOptimization, x_probe: Dict[str, float]):
+        run_directory = os.path.join(*list(map(lambda x: x.format(**x_probe), self.rundirectory_template)))
+        params = self.normalize_params(x_probe)
+        fitness = self.evaluator.fitness([{0: run_directory}], NormSchedule(params, "2020-06-28"))
+        self.data_points[self.run_configuration['policy_schedule_name']] = fitness
+        optimizer.register(x_probe, fitness)
+
+    def leave_instructions(self, run: int, x_probe: Dict[str, int]):
+        instruction_dir = os.path.join(get_project_root(), ".persistent", ".tmp", self.name)
+        os.makedirs(instruction_dir, exist_ok=True)
+        with open(os.path.join(instruction_dir, f"run-{run}"), 'w') as instructions_out:
+            instructions_out.write(json.dumps(x_probe))
+            print(f"Created instructions for slave {run}:", x_probe)
+
+    def do_optimization_simulation(self, x: Dict[str, float]):
+        self.store_fitness_guess(x)
+        self.start_run_time = datetime.datetime.now()
+        self.run_configuration["run"] = 0
+        self.prepare_simulation_run(x)
+        if not os.path.exists(self.get_target_file()):
+            print(
+                "Starting run ",
+                self.run_configuration["run"],
+                f"Progress recorded in\n{self._get_agent_run_log_file()}",
+            )
+            java_command_file = self._create_java_command_file()
+            self.set_pansim_parameters(java_command_file)
+            self.start_run(java_command_file)
+            os.remove(java_command_file)
+        else:
+            print(
+                "\nRun",
+                self.run_configuration["run"],
+                "already took place; skipping. Delete the directory for that run if it needs to be calculated again",
+                self.get_target_file(),
+            )
+
+    def iterate_as_slave(self):
+        instruction_dir = os.path.join(get_project_root(), ".persistent", ".tmp", self.name)
+        instruction_file = os.path.join(instruction_dir, f"run-{self.slave_number}")
+        progress_file = os.path.join(instruction_dir, f"run-{self.slave_number}.progress")
+        done_file = os.path.join(instruction_dir, f"run-{self.slave_number}.done")
+
+        while(True):
+            while not os.path.exists(instruction_file):
+                print(f"Slave {self.slave_number} is waiting for instructions")
+                time.sleep(30)
+
+            xprobe: Dict[str, int]
+            with open(instruction_file, 'r') as instructions_in:
+                x_probe = json.loads(instructions_in.read())
+                print("Instructions found!", x_probe)
+            os.rename(instruction_file, progress_file)
+            self.do_optimization_simulation(x_probe)
+            os.rename(progress_file, done_file)
+
+    @staticmethod
+    def load_norm_weights(norm_weights_file) -> Dict[str, float]:
         norm_weights = dict()
-        with open(self.norm_weights_file, 'r') as norm_weights_in:
+        with open(norm_weights_file, 'r') as norm_weights_in:
             norm_weights_in.readline()[:-1].split(",")  # Skip header
             for line in norm_weights_in:
                 group = re.findall(r'([\w \[\],;>%]+),([\d.]+)', line)
@@ -190,38 +347,10 @@ class EOOptimization(CodeExecution):
             toml.dump(toml_config, new_conf_out)
 
     def score_simulation_run(self, x: Dict[str, float], directories: List[Dict[int, str]]) -> float:
-        fitness = 0
-        for norm in self.norm_counts.keys():
-            active_duration = self.run_configuration['norm_schedule'].get_active_duration(norm)
-            affected_agents = self.find_number_of_agents_affected_by_norm(norm, directories)
-            norm_weight = self.norm_weights[norm]
-            fitness += (active_duration * norm_weight * affected_agents)
-        return self.count_infected_agents(directories) + (self.societal_global_impact_weight * fitness)
+        return self.evaluator.fitness(directories, self.run_configuration['norm_schedule'])
 
     def _write_csv_log(self, score):
         pass
-
-    def find_number_of_agents_affected_by_norm(self, norm_name: str, directories: List[Dict[int, str]]) -> int:
-        if "StayHomeSick" in norm_name:
-            return self.find_number_of_agents_affected_by_stayhome_if_sick(directories)
-        else:
-            return self.norm_counts[norm_name]['affected_agents']
-
-    def find_number_of_agents_affected_by_stayhome_if_sick(self, directories: List[Dict[int, str]]) -> int:
-        # TODO, just report number of symptomatically ill people
-        # TODO How to find people who were symptomatic?
-        return round(.6 * self.count_infected_agents(directories))
-
-    def count_infected_agents(self, directories: List[Dict[int, str]]) -> int:
-        amounts = defaultdict(int)
-        for node in directories:
-            for run, directory in node.items():
-                with open(os.path.join(directory, 'epicurve.pansim.csv'), 'r') as file_in:
-                    headers = file_in.readline()[:-1].split(",")
-                    values = file_in.readlines()[-1][:-1].split(",")
-                    infected = sum(map(lambda x: int(values[headers.index(x)]), ["isymp", "iasymp", "recov"]))
-                    amounts[run] += infected
-        return round(np.average(list(amounts.values())))
 
     @staticmethod
     def print_data_point_ranges() -> None:
@@ -234,7 +363,7 @@ class EOOptimization(CodeExecution):
             data_point += 1
             date = datetime.datetime.strptime(date_from_data_point(data_point), "%Y-%m-%d")
 
-    def load_norm_application_counts(self):
+    def load_norm_application_counts(self) -> Dict[str, Dict[str, int]]:
         filename = os.path.abspath(
             os.path.join(
                 get_project_root(),
@@ -268,10 +397,6 @@ class EOOptimization(CodeExecution):
 def test_data_point_range():
     EOOptimization.print_data_point_ranges()
     print("Done")
-
-
-def test_fitness():
-    opt = EOOptimization()
 
 
 if __name__ == "__main__":

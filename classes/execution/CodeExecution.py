@@ -159,7 +159,7 @@ class CodeExecution(object):
                     print(
                         "Starting run ",
                         self.run_configuration["run"],
-                        f"Progress recorded in\n{self.__get_agent_run_log_file()}",
+                        f"Progress recorded in\n{self._get_agent_run_log_file()}",
                     )
                     java_command_file = self._create_java_command_file()
                     self.set_pansim_parameters(java_command_file)
@@ -360,7 +360,7 @@ class CodeExecution(object):
         Used for running old version of PanSim
         Returns: Sub process with behavior model
         """
-        agentrun_log = self.__get_agent_run_log_file()
+        agentrun_log = self._get_agent_run_log_file()
         print(
             "Starting behavior model background process and writing output to "
             + agentrun_log
@@ -384,7 +384,7 @@ class CodeExecution(object):
         os.chmod(fname, state.st_mode | stat.S_IEXEC)
         return fname
 
-    def __get_agent_run_log_file(self):
+    def _get_agent_run_log_file(self):
         name = (
             self.name
             if self.name is None or self.name.startswith(".")
@@ -430,7 +430,7 @@ class CodeExecution(object):
                 self.get_base_directory(),
             ]
             + self.get_extra_java_commands()
-            + ["2>&1", "|", "tee", self.__get_agent_run_log_file()]
+            + ["2>&1", "|", "tee", self._get_agent_run_log_file()]
         )
 
     def get_extra_java_commands(self):
