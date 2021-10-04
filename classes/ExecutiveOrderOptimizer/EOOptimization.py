@@ -236,6 +236,7 @@ class EOOptimization(CodeExecution):
         for i in range(self.n_slaves):
             with open(os.path.join(instruction_dir, f"run-{i}.done")) as f_in:
                 self.deal_with_run(optimizer, json.loads(f_in.read()))
+            os.remove(os.path.join(instruction_dir, f"run-{i}.done"))
 
         return True
 
