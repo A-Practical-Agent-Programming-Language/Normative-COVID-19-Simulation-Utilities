@@ -84,8 +84,10 @@ class EOOptimization(CodeExecution):
         self.slave_number = slave_number
 
         if self.is_master:
+            print(f"Starting as master. Expecting {self.n_slaves} additional slaves")
             self.start_optimization()
         else:
+            print(f"Starting as slave {self.slave_number}")
             self.iterate_as_slave()
 
     def simple_test_f(self, **x):
@@ -138,8 +140,6 @@ class EOOptimization(CodeExecution):
         optimizer.subscribe(Events.OPTIMIZATION_START, _logger)
         optimizer.subscribe(Events.OPTIMIZATION_STEP, _logger)
         optimizer.subscribe(Events.OPTIMIZATION_END, _logger)
-
-        print("Starting maximization process using Bayesian optimizer")
 
         # "When dealing with functions with discrete parameters,or particularly erratic target space it
         #  might be beneficial to increase the value of the alpha parameter.
@@ -240,8 +240,8 @@ class EOOptimization(CodeExecution):
         return True
 
     def deal_with_run(self, optimizer: BayesianOptimization, x_probe: Dict[str, float]):
-        run_directory = os.path.join(*list(map(lambda x: x.format(**x_probe), self.rundirectory_template)))
         params = self.normalize_params(x_probe)
+        run_directory = os.path.join(*list(map(lambda x: x.format(x=params), self.rundirectory_template)))
         fitness = self.evaluator.fitness([{0: run_directory}], NormSchedule(params, "2020-06-28"))
         self.data_points[self.run_configuration['policy_schedule_name']] = fitness
         optimizer.register(x_probe, fitness)
@@ -285,6 +285,7 @@ class EOOptimization(CodeExecution):
         while(True):
             while not os.path.exists(instruction_file):
                 print(f"Slave {self.slave_number} is waiting for instructions")
+                print(f"Waiting for file {instruction_file} to appear")
                 time.sleep(30)
 
             xprobe: Dict[str, int]
