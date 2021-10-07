@@ -179,6 +179,9 @@ class EpicurvePlotter(object):
         return merged_curves, max_agents
 
     def group_runs(self) -> Dict[str, Dict[int, str]]:
+        if os.path.exists(os.path.join(self.simulation_output, "epicurve.sim2apl.csv")):
+            # Directory is straight simulation output, nothing to group
+            return {'': {0: self.simulation_output}}
         grouped_runs = defaultdict(dict)
         for path in os.listdir(self.simulation_output):
             if (

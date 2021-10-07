@@ -14,9 +14,9 @@ ReduceBusinessHours,0.15
 StayHomeSick,0.15
 StayHome[age>65],0.15
 StayHome[all],0.2
-SmallGroups[10,public],0.
-SmallGroups[50,PP],0.2
-SmallGroups[10,PP],0.2
+SmallGroups[10,public],0.2
+SmallGroups[50,PP],0.225
+SmallGroups[10,PP],0.25
 TakeawayAndOutdoorOnly,0.275
 ReduceBusinessCapacity[75%],0.275
 TakeawayOnly,0.3

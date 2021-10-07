@@ -12,7 +12,7 @@ StayHomeSick,0.3
 StayHome[age>65],0.3
 StayHome[all],0.4
 SmallGroups[10,public],0.4
-SmallGroups[50,PP],0.5
+SmallGroups[50,PP],0.45
 SmallGroups[10,PP],0.5
 ReduceHigherEducCapacity,0.65
 SchoolsClosed[K12],0.7
