@@ -243,9 +243,9 @@ class EOOptimization(CodeExecution):
     def deal_with_run(self, optimizer: BayesianOptimization, x_probe: Dict[str, float]):
         params = self.normalize_params(x_probe)
         run_directory = os.path.join(*list(map(lambda x: x.format(x=params), self.rundirectory_template)))
-        fitness = self.evaluator.fitness([{0: run_directory}], NormSchedule(params, "2020-06-28"))
-        self.data_points[self.run_configuration['policy_schedule_name']] = fitness
-        optimizer.register(x_probe, fitness)
+        target, infected, fitness = self.evaluator.fitness([{0: run_directory}], NormSchedule(params, "2020-06-28"))
+        self.data_points[self.run_configuration['policy_schedule_name']] = target
+        optimizer.register(x_probe, target)
 
     def leave_instructions(self, run: int, x_probe: Dict[str, int]):
         instruction_dir = os.path.join(get_project_root(), ".persistent", ".tmp", self.name)
@@ -349,7 +349,8 @@ class EOOptimization(CodeExecution):
             toml.dump(toml_config, new_conf_out)
 
     def score_simulation_run(self, x: Dict[str, float], directories: List[Dict[int, str]]) -> float:
-        return self.evaluator.fitness(directories, self.run_configuration['norm_schedule'])
+        target, infected, fitness = self.evaluator.fitness(directories, self.run_configuration['norm_schedule'])
+        return target
 
     def _write_csv_log(self, score):
         pass
@@ -370,7 +371,7 @@ class EOOptimization(CodeExecution):
             os.path.join(
                 get_project_root(),
                 '.persistent',
-                "affected-agents-per-norm-{0}.csv".format("-".join(sorted(map(lambda x: str(self.counties[x]['fipscode']), self.counties))))
+                "affected-agents-per-norm-{0}.csv".format("-".join(map(str, sorted(map(lambda x: int(self.counties[x]['fipscode']), self.counties)))))
             )
         )
 

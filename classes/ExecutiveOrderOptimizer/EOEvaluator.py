@@ -19,14 +19,16 @@ class EOEvaluator(object):
         self.norm_weights = norm_weights
         self.norm_counts = norm_counts
 
-    def fitness(self, directories: List[Dict[int, str]], norm_schedule: NormSchedule) -> float:
+    def fitness(self, directories: List[Dict[int, str]], norm_schedule: NormSchedule) -> (float, int, float):
         fitness = 0
         for norm in self.norm_counts.keys():
             active_duration = norm_schedule.get_active_duration(norm)
             affected_agents = self.find_number_of_agents_affected_by_norm(norm, directories)
             norm_weight = self.norm_weights[norm]
             fitness += (active_duration * norm_weight * affected_agents)
-        return -1 * (self.count_infected_agents(directories) + (self.societal_global_impact_weight * fitness))
+        infected = self.count_infected_agents(directories)
+        final_fitness = self.societal_global_impact_weight * fitness
+        return -1 * (infected + final_fitness), infected, fitness
 
     def find_number_of_agents_affected_by_norm(self, norm_name: str, directories: List[Dict[int, str]]) -> int:
         if "StayHomeSick" in norm_name:
@@ -47,6 +49,8 @@ class EOEvaluator(object):
                 with open(os.path.join(directory, 'epicurve.pansim.csv'), 'r') as file_in:
                     headers = file_in.readline()[:-1].split(",")
                     values = file_in.readlines()[-1][:-1].split(",")
-                    infected = sum(map(lambda x: int(values[headers.index(x)]), ["isymp", "iasymp", "recov"]))
+                    infected = sum(map(lambda x: int(values[headers.index(x)]), [
+                        #"expo",
+                        "isymp", "iasymp", "recov"]))
                     amounts[run] += infected
         return round(np.average(list(amounts.values())))

@@ -24,7 +24,7 @@ class NormExperiment(CodeExecution):
         self.original_county_configuration_file = self.county_configuration_file
         self.end_date = self.get_simulation_end_date()
         self.norms_file = self.get_norm_schedule()
-        self.experiment_dates = self.get_experiment_dates()
+        self.experiment_dates = self.get_experiment_dates(self.norms_file, self.end_date)
         print(f"Found {len(self.experiment_dates)} unique dates")
 
     def initiate(self):
@@ -52,13 +52,14 @@ class NormExperiment(CodeExecution):
     def _write_csv_log(self, score):
         pass
 
-    def get_experiment_dates(self):
+    @staticmethod
+    def get_experiment_dates(norms_file, experiment_end_date):
         experiment_dates = ["0000-00-00"]  # Start with empty norms
-        with open(self.norms_file, "r") as norms_in:
+        with open(norms_file, "r") as norms_in:
             for line in norms_in:
                 if len(line.split(",")):
                     date = line.split(",")[0]
-                    if date < str(self.end_date):
+                    if date < str(experiment_end_date):
                         experiment_dates.append(date)
 
         return sorted(list(set(experiment_dates)))

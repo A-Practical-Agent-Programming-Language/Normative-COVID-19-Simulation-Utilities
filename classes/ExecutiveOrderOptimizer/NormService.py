@@ -8,10 +8,11 @@ DATE_FORMAT = "%Y-%m-%d"
 
 class Norm(object):
 
-    def __init__(self, name: str, start: int, duration: int, index: int, params: str or None):
+    def __init__(self, name: str, start: int, duration: int, index: int, params: str or None, paper_params: str or None):
         self.name = name
         self.index = index
         self.params = params
+        self.paper_params = paper_params
         self.start = start
         self.end = self.start + duration
 
@@ -29,7 +30,7 @@ class Norm(object):
 
     def __str__(self):
         params = f" [{self.params}]" if self.params is not None else ''
-        return f"{self.name}{params} ({self.start}-{self.end})"
+        return f"{self.name}{params} ({self.start_date} - {self.end_date})"
 
     def __unicode__(self):
         return self.__str__()
@@ -41,51 +42,51 @@ class Norm(object):
 norms = {
     "EO0":
         [
-            (1, "AllowWearMask", None),
-            (4, "EncourageTelework", None)
+            (1, "AllowWearMask", None, None),
+            (4, "EncourageTelework", None, None)
         ],
     "EO1":
         [
-            (7, "SchoolsClosed", "K12")
+            (7, "SchoolsClosed", "K12", "K12")
         ],
     "EO2":
         [
-            (8, "SmallGroups", "100,public")
+            (8, "SmallGroups", "100,public", "100, \mathit{public}")
         ],
     "EO3":
         [
-            (6, "ReduceBusinessCapacity", "10"),
-            (2, "BusinessClosed", "7 DMV offices"),
-            (8, "SmallGroups", "10,public"),
-            (9, "StayHome", "age>65"),
-            (9, "StayHomeSick", None),
-            (5, "EncourageSocialDistance", None)
+            (6, "ReduceBusinessCapacity", "10", "10"),
+            (2, "BusinessClosed", "7 DMV offices", "DMV"),
+            (8, "SmallGroups", "10,public", "10, \mathit{public}"),
+            (9, "StayHome", "age>65", "\mathit{age}\geq 65"),
+            (9, "StayHomeSick", None, None),
+            (5, "EncourageSocialDistance", None, None)
         ],
     "EO4":
         [
-            (2, "BusinessClosed", "7 DMV offices;NEB"),
-            (9, "StayHome", "all"),
-            (10, "TakeawayOnly", None)
+            (2, "BusinessClosed", "7 DMV offices;NEB", "\mathit{DMV\wedge NEB}"),
+            (9, "StayHome", "all", "\mathit{all}"),
+            (10, "TakeawayOnly", None, None)
         ],
     "EO5":
         [
-            (5, "MaintainDistance", None),
-            (7, "SchoolsClosed", "K12;HIGHER_EDUCATION"),
-            (8, "SmallGroups", "10,PP")
+            (5, "MaintainDistance", None, None),
+            (7, "SchoolsClosed", "K12;HIGHER_EDUCATION", "\mathit{K12\ or\ HE}"),
+            (8, "SmallGroups", "10,PP", "10, \mathit{all}")
         ],
     "EO6":
         [
-            (3, "EmployeesWearMask", None),
-            (6, "ReduceBusinessCapacity", "50%")
+            (3, "EmployeesWearMask", None, None),
+            (6, "ReduceBusinessCapacity", "50%", "50\%")
         ],
     "EO7":
         [
-            (11, "WearMasInPublicIndoor", None)
+            (11, "WearMasInPublicIndoor", None, None)
         ],
     "EO8":
         [
-            (7, "SchoolsClosed", "K12"),
-            (8, "SmallGroups", "50,PP")
+            (7, "SchoolsClosed", "K12", "\mathit{K12}"),
+            (8, "SmallGroups", "50,PP", "50, \mathit{all}")
         ]
 }
 
@@ -110,8 +111,12 @@ def date_from_data_point(data_point: float):
         Date string
     """
     start = datetime(year=2020, month=3, day=1)
-    start += timedelta(weeks=int(data_point))
+    start += timedelta(weeks=data_point)
     return start.strftime(DATE_FORMAT)
+
+
+def data_point_from_date(to_convert: datetime) -> float:
+    return float(days_between_dates(datetime(year=2020, month=3, day=1), to_convert)) / 7
 
 
 def days_between_strings(start_date: str, end_date: str, max_date: None or str = None):
@@ -140,6 +145,18 @@ def split_param_groups(norm: 'Norm') -> List['Norm']:
     return norm_list
 
 
+def test_data_point_from_date():
+    start = datetime(year=2020, month=3, day=1)
+    not_converting_correctly = 0
+    while start < datetime(year=2020, month=6, day=30):
+        converted = date_from_data_point(data_point_from_date(start))
+        if converted != start.strftime(DATE_FORMAT):
+            print(start.strftime(DATE_FORMAT), converted, converted == start.strftime(DATE_FORMAT))
+            not_converting_correctly += 1
+        start = start + timedelta(days=1)
+
+    print(f"Done. {not_converting_correctly} items did not convert correctly. If this value is 0, data_point_from_time works correctly!")
+
 def find_duplicate_norms_in_eos():
     norm_names = defaultdict(list)
     for EO, eo_norms in norms.items():
@@ -153,5 +170,6 @@ def find_duplicate_norms_in_eos():
 
 
 if __name__ == "__main__":
-    print(get_bounds())
-    find_duplicate_norms_in_eos()
+    # print(get_bounds())
+    # find_duplicate_norms_in_eos()
+    test_data_point_from_date()
