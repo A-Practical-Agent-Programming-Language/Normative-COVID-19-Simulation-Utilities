@@ -154,3 +154,13 @@ va-counties-covid19-cases.csv
 # PyCharm
 .idea/
 constrNMPy/
+
+
+# Data files
+scripts/stringency-index/*.csv*
+scripts/stringency-index/*.xls*
+scripts/stringency-index/*.json
+scripts/stringency-index/*.ods
+
+scripts/nature-paper-calculations
+test-picture

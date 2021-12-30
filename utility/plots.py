@@ -49,7 +49,7 @@ def add_norms_to_graph(
                 simulation_output_dir
             )
         elif norm_schedule_file is not None:
-            activated, deactivated = read_norms_from_norm_schedule(norm_schedule_file)
+            activated, deactivated = read_norms_dates_from_norm_schedule(norm_schedule_file)
         else:
             raise ValueError(
                 "No norms provided, can't add norms if we don't have them!"
@@ -76,7 +76,18 @@ def add_norms_to_graph(
         ax.add_line(line)
 
 
-def read_norms_from_norm_schedule(norm_schedule_file: str) -> (List[str], List[str]):
+def read_norms_dates_from_norm_schedule(norm_schedule_file: str) -> (List[str], List[str]):
+    """
+    This function generates two lists of dates. The first list are all the dates on which a new norm is being
+    activated (with duplicates if multiple norms are activated) while the second list contains all dates on which
+    norms are being deactivated
+
+    Args:
+        norm_schedule_file:
+
+    Returns:
+
+    """
     new_norm_dates, norm_deactivated_dates = list(), list()
     with open(norm_schedule_file, "r") as norms_in:
         norms_in.readline()[:-1].split(",")  # Skip header
@@ -92,6 +103,17 @@ def read_norms_from_norm_schedule(norm_schedule_file: str) -> (List[str], List[s
 def read_norms_from_average_schedule(
     simulation_output_directory: str,
 ) -> (List[str], List[str]):
+    """
+        This function generates two lists of dates. The first list are all the dates on which a new norm is being
+        activated (with duplicates if multiple norms are activated) while the second list contains all dates on which
+        norms are being deactivated
+
+        Args:
+            norm_schedule_file:
+
+        Returns:
+
+        """
     average_schedule_file = next(
         filter(
             lambda x: "average-schedule" in x, os.listdir(simulation_output_directory)
@@ -110,3 +132,4 @@ def read_norms_from_average_schedule(
                 norm_deactivated_dates += [date] * len(deactivated.split(","))
 
     return new_norm_dates, norm_deactivated_dates
+
