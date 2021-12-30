@@ -98,7 +98,7 @@ class EpicurveRMSE(object):
         predicted_recovered_list: List[Tuple[Run, Dict[Date, int]]] = [
             (
                 run,
-                self.__read_recovered_from_epicurve(
+                self.__read_all_infected_from_epicurve(
                     os.path.join(run_directory[run], self.__epicurve_filename)
                 ),
             )
@@ -147,15 +147,16 @@ class EpicurveRMSE(object):
         return sqrt(mean_squared_error(target, predicted))
 
     @staticmethod
-    def __read_recovered_from_epicurve(run_directory: str) -> Dict[Date, int]:
+    def __read_all_infected_from_epicurve(run_directory: str) -> Dict[Date, int]:
         epicurve = dict()
         with open(run_directory) as epicurve_in:
             headers = epicurve_in.readline()[:-1].split(";")
+            required_headers = ["EXPOSED", "INFECTED_SYMPTOMATIC", "INFECTED_ASYMPTOMATIC", "RECOVERED"]
+            required_indices = [headers.index(h) for h in required_headers]
             for line in epicurve_in:
                 data = line[:-1].split(";")
-                epicurve[data[headers.index("Date")]] = int(
-                    data[int(headers.index("RECOVERED"))]
-                )
+                all_infected = sum([int(data[x]) for x in required_indices])
+                epicurve[data[headers.index("Date")]] = all_infected
 
         return epicurve
 
