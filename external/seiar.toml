@@ -1,0 +1,118 @@
+version = 1.0
+
+unit_time = 300.0
+
+states = [ "succ", "expo", "isymp", "iasymp", "recov" ]
+groups = [ "0to9", "10to19", "20to29", "30to39", "40to49", "50to59", "60to69", "70plus" ]
+
+behaviors = [ "base", "mask", "sdist", "mask_sdist" ]
+
+exposed_state = "expo"
+
+[succeptibility]
+
+# Reported "relative" values from article
+# succ.0to9 	= 0.4
+# succ.10to19 = 0.38
+# succ.20to29 = 0.79
+# succ.30to39 = 0.86
+# succ.40to49 = 0.8
+# succ.50to59 = 0.82
+# succ.60to69 = 0.88
+# succ.70plus = 0.74
+
+# Scaled reported relative values from article
+succ.0to9 	= 0.007069691649670418
+succ.10to19 = 0.006617394098256124
+succ.20to29 = 0.021442434154059997
+succ.30to39 = 0.02693765420405758
+succ.40to49 = 0.02210532042205393
+succ.50to59 = 0.02353526680237561
+succ.60to69 = 0.029018734272523328
+succ.70plus = 0.01853542263422636
+
+
+[infectivity]
+
+isymp.0to9   = 1
+isymp.10to19 = 1
+isymp.20to29 = 1
+isymp.30to39 = 1
+isymp.40to49 = 1
+isymp.50to59 = 1
+isymp.60to69 = 1
+isymp.70plus = 1
+
+iasymp.0to9   = 0.5
+iasymp.10to19 = 0.5
+iasymp.20to29 = 0.5
+iasymp.30to39 = 0.5
+iasymp.40to49 = 0.5
+iasymp.50to59 = 0.5
+iasymp.60to69 = 0.5
+iasymp.70plus = 0.5
+
+[progression]
+
+expo.0to9   = { isymp = 0.29, iasymp = 0.71 }
+expo.10to19 = { isymp = 0.21, iasymp = 0.79 }
+expo.20to29 = { isymp = 0.27, iasymp = 0.73 }
+expo.30to39 = { isymp = 0.33, iasymp = 0.67 }
+expo.40to49 = { isymp = 0.40, iasymp = 0.60 }
+expo.50to59 = { isymp = 0.49, iasymp = 0.51 }
+expo.60to69 = { isymp = 0.63, iasymp = 0.37 }
+expo.70plus = { isymp = 0.69, iasymp = 0.31 }
+
+isymp.0to9   = { recov = 1.0 }
+isymp.10to19 = { recov = 1.0 }
+isymp.20to29 = { recov = 1.0 }
+isymp.30to39 = { recov = 1.0 }
+isymp.40to49 = { recov = 1.0 }
+isymp.50to59 = { recov = 1.0 }
+isymp.60to69 = { recov = 1.0 }
+isymp.70plus = { recov = 1.0 }
+
+iasymp.0to9   = { recov = 1.0 }
+iasymp.10to19 = { recov = 1.0 }
+iasymp.20to29 = { recov = 1.0 }
+iasymp.30to39 = { recov = 1.0 }
+iasymp.40to49 = { recov = 1.0 }
+iasymp.50to59 = { recov = 1.0 }
+iasymp.60to69 = { recov = 1.0 }
+iasymp.70plus = { recov = 1.0 }
+
+[dwell_time]
+
+expo.base = { isymp = "exposed", iasymp = "exposed" }
+isymp.base = { recov = "subclinical" }
+iasymp.base = { recov = "subclinical" }
+
+[behavior_modifier]
+
+base = { base = 1.0, mask = 0.5, sdist = 0.5, mask_sdist = 0.25 }
+mask = { base = 0.5, mask = 0.25, sdist = 0.25, mask_sdist = 0.15625 }
+sdist = { base = 0.5, mask = 0.25, sdist = 0.25, mask_sdist = 0.15625 }
+mask_sdist = { base = 0.25, mask = 0.15625, sdist = 0.15625, mask_sdist = 0.00390625 }
+
+[distribution.exposed]
+dist="gamma"
+shape=4
+scale=0.75
+
+
+[distribution.subclinical]
+dist="gamma"
+shape=3
+scale=1.6666666666666667
+
+
+# Preclinical and clinical distributions reported in Nature paper not used here
+[distribution.preclinical]
+dist="gamma"
+shape=4
+scale=0.525
+
+[distribution.clinical]
+dist="gamma"
+shape=4
+scale=0.725
