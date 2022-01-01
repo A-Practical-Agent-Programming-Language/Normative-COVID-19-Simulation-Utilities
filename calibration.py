@@ -386,10 +386,10 @@ def disease(
     dc = DiseaseCalibration(**args)
 
     initial_simplex = [
-        [0.00001, 0.000005, 30],
-        [0.0001, 0.00005, 50],
-        [0.000001, 0.0000005, 20],
-        [0.000001, 0.0000005, 10],
+        [1, .5, 30],
+        [.8, .4, 50],
+        [1, .6, 10],
+        [.8, .6, 30],
     ]
 
     calibrate(dc.calibrate, initial_simplex)
