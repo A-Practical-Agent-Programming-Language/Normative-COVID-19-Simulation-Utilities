@@ -83,9 +83,33 @@ iasymp.70plus = { recov = 1.0 }
 
 [dwell_time]
 
-expo.base = { isymp = "exposed", iasymp = "exposed" }
-isymp.base = { recov = "subclinical" }
-iasymp.base = { recov = "subclinical" }
+expo.0to9   = { isymp = "exposed", iasymp = "exposed" }
+expo.10to19 = { isymp = "exposed", iasymp = "exposed" }
+expo.20to29 = { isymp = "exposed", iasymp = "exposed" }
+expo.30to39 = { isymp = "exposed", iasymp = "exposed" }
+expo.40to49 = { isymp = "exposed", iasymp = "exposed" }
+expo.50to59 = { isymp = "exposed", iasymp = "exposed" }
+expo.60to69 = { isymp = "exposed", iasymp = "exposed" }
+expo.70plus = { isymp = "exposed", iasymp = "exposed" }
+
+isymp.0to9   = { recov = "subclinical" }
+isymp.10to19 = { recov = "subclinical" }
+isymp.20to29 = { recov = "subclinical" }
+isymp.30to39 = { recov = "subclinical" }
+isymp.40to49 = { recov = "subclinical" }
+isymp.50to59 = { recov = "subclinical" }
+isymp.60to69 = { recov = "subclinical" }
+isymp.70plus = { recov = "subclinical" }
+
+
+iasymp.0to9   = { recov = "subclinical" }
+iasymp.10to19 = { recov = "subclinical" }
+iasymp.20to29 = { recov = "subclinical" }
+iasymp.30to39 = { recov = "subclinical" }
+iasymp.40to49 = { recov = "subclinical" }
+iasymp.50to59 = { recov = "subclinical" }
+iasymp.60to69 = { recov = "subclinical" }
+iasymp.70plus = { recov = "subclinical" }
 
 [behavior_modifier]
 
