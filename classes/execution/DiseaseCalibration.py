@@ -67,11 +67,12 @@ class DiseaseCalibration(CodeExecution):
         with open(self.base_disease_model, "r") as fin:
             with open(self.disease_model_file, "w") as fout:
                 for line in fin.readlines():
-                    if re.match(r"ia?symp.base\s*=\s*(\d\.)?\d+", line):
-                        if line.startswith("isymp.base"):
-                            fout.write(f"isymp.base = {x[0]}\n")
-                        elif line.startswith("iasymp.base"):
-                            fout.write(f"iasymp.base = {x[1]}\n")
+                    match = re.match(r"ia?symp\.(\w+)\s*=\s*(\d\.)?\d+", line)
+                    if match:
+                        if line.startswith("isymp."):
+                            fout.write(f"isymp.{match[1]} = {x[0]}\n")
+                        elif line.startswith("iasymp."):
+                            fout.write(f"iasymp.{match[1]} = {x[1]}\n")
                     else:
                         fout.write(line)
 
