@@ -28,7 +28,7 @@ class EOOptimization(CodeExecution):
         "EO1_{x[EO1_start]}_{x[EO1_duration]}-EO2_{x[EO2_start]}_{x[EO2_duration]}-"
         "EO3_{x[EO3_start]}_{x[EO3_duration]}-EO4_{x[EO4_start]}_{x[EO4_duration]}-"
         "EO5_{x[EO5_start]}_{x[EO5_duration]}-EO6_{x[EO6_start]}_{x[EO6_duration]}-"
-        "EO7_{x[EO7_start]}_{x[EO7_duration]}-EO8_{x[EO8_start]}_{x[EO8_duration]}",
+        "EO7_{x[EO7_start]}_{x[EO7_duration]}-EO8_{x[EO8_start]}_{x[EO8_duration]}-run{run}",
     ]
     progress_format = "[OPTIMIZATION] [{time}] {ncounties} counties ({fips}): {score} for x={x} policy optimization (dir={output_dir})\n"
     csv_log = os.path.join(get_project_root(), "output", "optimization.results.csv")
@@ -82,6 +82,14 @@ class EOOptimization(CodeExecution):
 
         self.n_slaves = n_slaves
         self.slave_number = slave_number
+
+        if (self.n_slaves + 1) % self.n_runs != 0:
+            print((self.n_slaves + 1) % self.n_runs)
+            raise(Exception(f"The specified number of {self.n_runs} cannot cleanly be distributed across the "
+                            f"{self.n_slaves} + 1 master process. Pick another number or create a pull request "
+                            f"to deal with this case :')"))
+
+        self.n_simultaneous_runs = int((self.n_slaves + 1) / self.n_runs)
 
         if self.is_master:
             print(f"Starting as master. Expecting {self.n_slaves} additional slaves")
@@ -186,12 +194,19 @@ class EOOptimization(CodeExecution):
         )
         iteration = 0
         while not optimizer._queue.empty or iteration < n_iter:
-            to_probe, number_probed = self.probe_n(optimizer, util, self.n_slaves + 1)
-            for i in range(self.n_slaves):
-                self.leave_instructions(i, to_probe[i])
+            to_probe, number_probed = self.probe_n(optimizer, util, self.n_simultaneous_runs)
+            slave = 0
+            for i in range(self.n_simultaneous_runs):
+                for j in range(self.n_runs):
+                    if slave < self.n_slaves:
+                        instructions = dict(to_probe[i])
+                        instructions["run"] = j
+                        self.leave_instructions(slave, instructions)
+                    slave += 1
 
-            self.do_optimization_simulation(to_probe[-1])
-            self.deal_with_run(optimizer, to_probe[-1])
+            instructions = dict(to_probe[-1])
+            instructions["run"] = self.n_runs - 1
+            self.do_optimization_simulation(instructions)
 
             while not self.all_runs_finished(optimizer):
                 print("Waiting for other runs to finish")
@@ -213,6 +228,7 @@ class EOOptimization(CodeExecution):
                 probed += 1
 
             params = self.normalize_params(x_probe)
+            self.run_configuration["run"] = 0  # Used in formatting filename that is not used at this point
             self.store_fitness_guess(params)
             if self.run_configuration['policy_schedule_name'] in self.data_points:
                 optimizer.register(x_probe, self.data_points[self.run_configuration['policy_schedule_name']])
@@ -233,31 +249,35 @@ class EOOptimization(CodeExecution):
             if not os.path.exists(os.path.join(instruction_dir, f"run-{i}.done")):
                 return False
 
-        for i in range(self.n_slaves):
+        for i in range(0, self.n_slaves + 1, self.n_runs):
             with open(os.path.join(instruction_dir, f"run-{i}.done")) as f_in:
                 self.deal_with_run(optimizer, json.loads(f_in.read()))
+
+        for i in range(self.n_slaves):
             os.remove(os.path.join(instruction_dir, f"run-{i}.done"))
 
         return True
 
     def deal_with_run(self, optimizer: BayesianOptimization, x_probe: Dict[str, float]):
         params = self.normalize_params(x_probe)
-        run_directory = os.path.join(*list(map(lambda x: x.format(x=params), self.rundirectory_template)))
-        target, infected, fitness = self.evaluator.fitness([{0: run_directory}], NormSchedule(params, "2020-06-28"))
+        run_directories = dict()
+        for i in range(self.n_simultaneous_runs):
+            run_directories[i] = os.path.join(*list(map(lambda x: x.format(run=i, x=params), self.rundirectory_template)))
+        target, infected, fitness = self.evaluator.fitness([run_directories], NormSchedule(params, "2020-06-28"))
         self.data_points[self.run_configuration['policy_schedule_name']] = target
         optimizer.register(x_probe, target)
 
-    def leave_instructions(self, run: int, x_probe: Dict[str, int]):
+    def leave_instructions(self, slave: int, x_probe: Dict[str, int]):
         instruction_dir = os.path.join(get_project_root(), ".persistent", ".tmp", self.name)
         os.makedirs(instruction_dir, exist_ok=True)
-        with open(os.path.join(instruction_dir, f"run-{run}"), 'w') as instructions_out:
+        with open(os.path.join(instruction_dir, f"run-{slave}"), 'w') as instructions_out:
             instructions_out.write(json.dumps(x_probe))
-            print(f"Created instructions for slave {run}:", x_probe)
+            print(f"Created instructions for slave {slave}:", x_probe)
 
     def do_optimization_simulation(self, x: Dict[str, float]):
+        self.run_configuration["run"] = x.pop('run')
         self.store_fitness_guess(x)
         self.start_run_time = datetime.datetime.now()
-        self.run_configuration["run"] = 0
         self.prepare_simulation_run(x)
         if not os.path.exists(self.get_target_file()):
             print(
@@ -321,7 +341,9 @@ class EOOptimization(CodeExecution):
             "EO1_{EO1_start}_{EO1_duration}-EO2_{EO2_start}_{EO2_duration}-"
             "EO3_{EO3_start}_{EO3_duration}-EO4_{EO4_start}_{EO4_duration}-"
             "EO5_{EO5_start}_{EO5_duration}-EO6_{EO6_start}_{EO6_duration}-"
-            "EO7_{EO7_start}_{EO7_duration}-EO8_{EO8_start}_{EO8_duration}.csv".format(**x)
+            "EO7_{EO7_start}_{EO7_duration}-EO8_{EO8_start}_{EO8_duration}-run{run}.csv".format(
+                run=self.run_configuration['run'], **x
+            )
         )
 
     def prepare_simulation_run(self, x):
@@ -340,7 +362,9 @@ class EOOptimization(CodeExecution):
             "EO1_{EO1_start}_{EO1_duration}-EO2_{EO2_start}_{EO2_duration}-"
             "EO3_{EO3_start}_{EO3_duration}-EO4_{EO4_start}_{EO4_duration}-"
             "EO5_{EO5_start}_{EO5_duration}-EO6_{EO6_start}_{EO6_duration}-"
-            "EO7_{EO7_start}_{EO7_duration}-EO8_{EO8_start}_{EO8_duration}.toml".format(**x)
+            "EO7_{EO7_start}_{EO7_duration}-EO8_{EO8_start}_{EO8_duration}-run{run}.toml".format(
+                run=self.run_configuration["run"], **x
+            )
         )
 
         os.makedirs(Path(self.county_configuration_file).parent.absolute(), exist_ok=True)

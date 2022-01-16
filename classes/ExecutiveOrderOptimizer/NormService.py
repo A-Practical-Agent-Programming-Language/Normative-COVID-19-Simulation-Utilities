@@ -138,7 +138,7 @@ def split_param_groups(norm: 'Norm') -> List['Norm']:
     norm_list = list()
     if norm.params is not None and ";" in norm.params:
         for param in norm.params.split(";"):
-            new_norm = Norm(norm.name, norm.start, norm.end - norm.start, norm.index, param)
+            new_norm = Norm(norm.name, norm.start, norm.end - norm.start, norm.index, param, None)
             norm_list.append(new_norm)
     else:
         norm_list.append(norm)
