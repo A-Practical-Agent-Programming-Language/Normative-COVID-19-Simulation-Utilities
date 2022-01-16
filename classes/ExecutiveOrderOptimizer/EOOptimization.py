@@ -83,7 +83,7 @@ class EOOptimization(CodeExecution):
         self.n_slaves = n_slaves
         self.slave_number = slave_number
 
-        if (self.n_slaves + 1) % self.n_runs != 0:
+        if self.is_master and (self.n_slaves + 1) % self.n_runs != 0:
             print((self.n_slaves + 1) % self.n_runs)
             raise(Exception(f"The specified number of {self.n_runs} cannot cleanly be distributed across the "
                             f"{self.n_slaves} + 1 master process. Pick another number or create a pull request "
