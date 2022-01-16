@@ -243,7 +243,7 @@ class EpicurvePlotter(object):
             for day in curve:
                 if day not in curve_values:
                     curve_values[day] = dict(
-                        susceptible=[], infected=[], recovered=[], total=[]
+                        susceptible=[], infected=[], recovered=[], calibration_target=[], total=[]
                     )
                 susc = int(curve[day]["SUSCEPTIBLE"])
                 inf = (
@@ -252,9 +252,12 @@ class EpicurvePlotter(object):
                     + int(curve[day]["INFECTED_ASYMPTOMATIC"])
                 )
                 rec = int(curve[day]["RECOVERED"])
+                calibration_target = inf + rec
                 curve_values[day]["susceptible"].append(susc)
                 curve_values[day]["infected"].append(inf)
                 curve_values[day]["recovered"].append(rec)
+                curve_values[day]["total"].append(susc + inf + rec)
+                curve_values[day]["calibration_target"].append(calibration_target)
 
         return curve_values
 
@@ -285,7 +288,7 @@ class EpicurvePlotter(object):
         days = sorted(curves.keys())
         cases = self.get_case_data()
 
-        recovered = [curves[day]["recovered"] for day in days]
+        recovered = [curves[day]["calibration_target"] for day in days]
         recorded = [
             cases[day] * scale_factor if day in cases else math.nan for day in days
         ]
@@ -296,7 +299,7 @@ class EpicurvePlotter(object):
         x = np.arange(0, len(days), 1)
 
         y_recc, y_recc_err = metrics(recovered_pct)
-        ax.plot(x, y_recc, "k", color="#ffd320", label="Recovered")
+        ax.plot(x, y_recc, "k", color="#ffd320", label="Simulated")
         ax.fill_between(
             x,
             y_recc - y_recc_err,
@@ -306,7 +309,7 @@ class EpicurvePlotter(object):
             antialiased=True,
         )
 
-        ax.plot(x, recorded_pct, color="blue", label=f"cases * {scale_factor}")
+        ax.plot(x, recorded_pct, color="blue", label=f"Real cases * {scale_factor}")
         add_norms_to_graph(ax, days, simulation_output_dir=sample_simulation_dir)
 
         plt.suptitle(title)

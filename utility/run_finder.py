@@ -42,9 +42,9 @@ def extract_run_configuration_from_disease_path(disease_path: str) -> Dict[str, 
 
     """
     re_params = (
-        r"(\d+(?:\.|e-)\d+(?:e-\d+)?)isymp--?"
-        r"(\d+(?:\.|e-)\d+(?:e-\d+)?)iasymp-(?:-?(\d+(?:\.|e-)\d+(?:e-\d+)?)scale-)?"
-        r"(\d+(?:\.|e-)\d+(?:e-\d+)?)l-(\d+(?:\.|e-)\d+(?:e-\d+)?)c-(\d+(?:\.|e-)\d+(?:e-\d+)?)f-"
+        r"(\d+(?:\.|e-)\d+(?:e-\d+)?)isymp--?(\d+(?:\.|e-)\d+(?:e-\d+)?)iasymp-"
+        r"(?:-?(\d+(?:\.|e-)\d+(?:e-\d+)?)scale-)?(\d+(?:\.|e-)\d+(?:e-\d+)?)l-"
+        r"(\d+(?:\.|e-)\d+(?:e-\d+)?)c-(\d*(?:\.|e-)\d+(?:e-\d+)?)f-"
         r"(\d+(?:(?:\.|e-)\d+)?(?:e-\d+)?)fs"
     )
     extracted = dict()

@@ -64,7 +64,7 @@ class MobilityPlotter(object):
             file_name = "{rmse:.4f}rmse-{0:.4f}l-{1:.4f}r-{2:.4f}f-{3:.0f}fs-combined.png".format(
                 *configuration, rmse=rmse
             )
-            self.plot_merged_mobility(run_group[0], merged, name=file_name)
+            self.plot_merged_mobility(run_group[0], merged, name=file_name, match_colors=True)
 
             if print_table:
                 self.create_data_table(merged, rmse)
@@ -75,7 +75,7 @@ class MobilityPlotter(object):
                     rmse=rmse,
                     county=self.get_county_name_for_fips(fips),
                 )
-                self.plot_merged_mobility(run_group[0], merged, fips, fname)
+                self.plot_merged_mobility(run_group[0], merged, fips, fname, match_colors=False)
 
     def make_fips_to_county_name_dict(self) -> Dict[int, str]:
         fips_to_county_name = dict()
@@ -140,6 +140,7 @@ class MobilityPlotter(object):
         mobility,
         fips_to_plot=None,
         name="mobility.png",
+        match_colors=False
     ):
         fig, ax = plt.subplots()
         days = sorted(list(set(mobility.keys())))
@@ -157,12 +158,15 @@ class MobilityPlotter(object):
             agents_label = f"agents {county}" if fips_to_plot is None else "Agents"
 
             y, err = metrics(agents)
-            ax.plot(x, real, label=real_label, linestyle="--")
             line = ax.plot(x, y, label=agents_label)
             c = line[0].get_color()
             ax.fill_between(
                 x, y - err, y + err, alpha=0.2, facecolor=c, antialiased=True
             )
+            if match_colors:
+                ax.plot(x, real, label=real_label, linestyle="--", color=c)
+            else:
+                ax.plot(x, real, label=real_label, linestyle="--")
 
         add_norms_to_graph(ax, days, simulation_output_dir=sample_simulation_dir)
 
