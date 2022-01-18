@@ -57,6 +57,7 @@ class EOOptimization(CodeExecution):
         self.run_configuration["conservative"] = self.mode_conservative
         self.run_configuration["fatigue"] = self.fatigue
         self.run_configuration["fatigue_start"] = self.fatigue_start
+        self.instruction_dir = os.path.join(get_project_root(), ".persistent", ".tmp", self.name)
 
         self.alpha = alpha
         self.init_points = init_points
@@ -198,28 +199,40 @@ class EOOptimization(CodeExecution):
             slave = 0
             for i in range(self.n_simultaneous_runs):
                 for j in range(self.n_runs):
-                    if slave < self.n_slaves:
+                    if slave < self.n_slaves and not self.simulation_exists(to_probe[i], j)[0]:
                         instructions = dict(to_probe[i])
                         instructions["run"] = j
                         self.leave_instructions(slave, instructions)
+                    elif slave < self.n_slaves:
+                        print("Not leaving instructions for slave", slave, "for run", j, ". The path does already exist:")
+                        print("\t", self.simulation_exists(to_probe[i], j)[1])
                     slave += 1
 
             instructions = dict(to_probe[-1])
             instructions["run"] = self.n_runs - 1
-            self.do_optimization_simulation(instructions)
+            if not self.simulation_exists(to_probe[-1], self.n_runs - 1)[0]:
+                self.do_optimization_simulation(instructions)
+            else:
+                print("Master will wait for slaves to finish. The path for run", self.n_runs - 1, "already exists:")
+                print("\t", self.simulation_exists(to_probe[-1], self.n_runs - 1)[1])
 
-            while not self.all_runs_finished(optimizer):
-                print("Waiting for other runs to finish")
+            while not self.all_runs_finished(optimizer, to_probe)[0]:
+                print("Waiting for runs of slaves", ",".join(self.all_runs_finished(optimizer, to_probe)[1]), "to finish")
                 time.sleep(30)
 
             iteration += number_probed
 
         optimizer.dispatch(Events.OPTIMIZATION_END)
 
+    def simulation_exists(self, x_probe: Dict[str, float], run: int) -> (bool, os.PathLike):
+        params = self.normalize_params(x_probe)
+        path = os.path.join(*list(map(lambda t: t.format(run=run, x=params), self.rundirectory_template)))
+        return os.path.exists(path), path
+
     def probe_n(self, optimizer, util: UtilityFunction, n):
         x_probes = list()
         probed = 0
-        for _ in range(n):
+        while len(x_probes) < n:
             try:
                 x_probe = dict(zip(optimizer._space._keys, next(optimizer._queue)))
             except StopIteration:
@@ -243,24 +256,32 @@ class EOOptimization(CodeExecution):
 
         return x_probes, probed
 
-    def all_runs_finished(self, optimizer: BayesianOptimization):
-        instruction_dir = os.path.join(get_project_root(), ".persistent", ".tmp", self.name)
+    def check_instructions_finished(self, instruction_dir: str, x_probe: Dict[str, float], run: int):
+        base, progress, done = [os.path.exists(os.path.join(instruction_dir, f"run-{run}{t}")) for t in ["", ".progress", ".done"]]
+        return done or (not base and not progress and self.simulation_exists(x_probe, run))
+
+    def all_runs_finished(self, optimizer: BayesianOptimization, x_probes: List[Dict[str, float]]) -> (bool, List[str]):
+        not_finished = list()
         for i in range(self.n_slaves):
-            if not os.path.exists(os.path.join(instruction_dir, f"run-{i}.done")):
-                return False
+            if not self.check_instructions_finished(self.instruction_dir, x_probes[i % self.n_simultaneous_runs], i):
+                not_finished.append(str(i))
 
-        for i in range(0, self.n_slaves + 1, self.n_runs):
-            with open(os.path.join(instruction_dir, f"run-{i}.done")) as f_in:
-                self.deal_with_run(optimizer, json.loads(f_in.read()))
+        if len(not_finished):
+            return False, not_finished
+
+        for x_probe in x_probes:
+            self.deal_with_run(optimizer, x_probe)
 
         for i in range(self.n_slaves):
-            os.remove(os.path.join(instruction_dir, f"run-{i}.done"))
+            if os.path.exists(os.path.join(self.instruction_dir, f"run-{i}.done")):
+                os.remove(os.path.join(self.instruction_dir, f"run-{i}.done"))
 
-        return True
+        return True, []
 
     def deal_with_run(self, optimizer: BayesianOptimization, x_probe: Dict[str, float]):
         x_probe_copy = x_probe.copy()
-        x_probe_copy.pop('run')
+        if 'run' in x_probe_copy:
+            x_probe_copy.pop('run')
         params = self.normalize_params(x_probe_copy)
         run_directories = dict()
         for i in range(self.n_simultaneous_runs):
@@ -270,9 +291,8 @@ class EOOptimization(CodeExecution):
         optimizer.register(x_probe_copy, target)
 
     def leave_instructions(self, slave: int, x_probe: Dict[str, int]):
-        instruction_dir = os.path.join(get_project_root(), ".persistent", ".tmp", self.name)
-        os.makedirs(instruction_dir, exist_ok=True)
-        with open(os.path.join(instruction_dir, f"run-{slave}"), 'w') as instructions_out:
+        os.makedirs(self.instruction_dir, exist_ok=True)
+        with open(os.path.join(self.instruction_dir, f"run-{slave}"), 'w') as instructions_out:
             instructions_out.write(json.dumps(x_probe))
             print(f"Created instructions for slave {slave}:", x_probe)
 
@@ -300,10 +320,9 @@ class EOOptimization(CodeExecution):
             )
 
     def iterate_as_slave(self):
-        instruction_dir = os.path.join(get_project_root(), ".persistent", ".tmp", self.name)
-        instruction_file = os.path.join(instruction_dir, f"run-{self.slave_number}")
-        progress_file = os.path.join(instruction_dir, f"run-{self.slave_number}.progress")
-        done_file = os.path.join(instruction_dir, f"run-{self.slave_number}.done")
+        instruction_file = os.path.join(self.instruction_dir, f"run-{self.slave_number}")
+        progress_file = os.path.join(self.instruction_dir, f"run-{self.slave_number}.progress")
+        done_file = os.path.join(self.instruction_dir, f"run-{self.slave_number}.done")
 
         while(True):
             while not os.path.exists(instruction_file):
