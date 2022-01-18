@@ -3,6 +3,7 @@ import json
 import os.path
 import re
 import subprocess
+import sys
 import time
 from pathlib import Path
 from typing import List, Dict
@@ -244,9 +245,18 @@ class EOOptimization(CodeExecution):
             self.run_configuration["run"] = 0  # Used in formatting filename that is not used at this point
             self.store_fitness_guess(params)
             if self.run_configuration['policy_schedule_name'] in self.data_points:
-                optimizer.register(x_probe, self.data_points[self.run_configuration['policy_schedule_name']])
-                print("Params already tested", params)
+                try:
+                    optimizer.register(x_probe, self.data_points[self.run_configuration['policy_schedule_name']])
+                    print("Params already tested", params)
+                except KeyError as e:
+                    # This is stupid: Acquisition function suggests a previously probed point, and then the optimizer
+                    # fails, because the point is already registered
+                    print(f"{x_probe} already in optimizer cache! WHY WAS THIS SUGGESTED?", file=sys.stderr)
+                    print(e, file=sys.stderr)
                 probed -= 1
+            elif all([self.check_instructions_finished(x_probe, x) for x in range(self.n_runs)]):
+                print("Simulation has already been run, but had not yet been processed. Fixed now!")
+                self.deal_with_run(optimizer, x_probe)
             else:
                 x_probes.append(x_probe)
 
@@ -256,14 +266,14 @@ class EOOptimization(CodeExecution):
 
         return x_probes, probed
 
-    def check_instructions_finished(self, instruction_dir: str, x_probe: Dict[str, float], run: int):
-        base, progress, done = [os.path.exists(os.path.join(instruction_dir, f"run-{run}{t}")) for t in ["", ".progress", ".done"]]
-        return done or (not base and not progress and self.simulation_exists(x_probe, run))
+    def check_instructions_finished(self, x_probe: Dict[str, float], run: int) -> bool:
+        base, progress, done = [os.path.exists(os.path.join(self.instruction_dir, f"run-{run}{t}")) for t in ["", ".progress", ".done"]]
+        return done or (not base and not progress and self.simulation_exists(x_probe, run)[0])
 
     def all_runs_finished(self, optimizer: BayesianOptimization, x_probes: List[Dict[str, float]]) -> (bool, List[str]):
         not_finished = list()
         for i in range(self.n_slaves):
-            if not self.check_instructions_finished(self.instruction_dir, x_probes[i % self.n_simultaneous_runs], i):
+            if not self.check_instructions_finished(x_probes[i % self.n_simultaneous_runs], i):
                 not_finished.append(str(i))
 
         if len(not_finished):
@@ -445,9 +455,3 @@ class EOOptimization(CodeExecution):
 def test_data_point_range():
     EOOptimization.print_data_point_ranges()
     print("Done")
-
-
-if __name__ == "__main__":
-    # test_fitness()
-    for x in range(9):
-        print(f"EO{x}_{{x[EO{x}_start]}}_{{x[EO{x}_duration]}}-", end="")
