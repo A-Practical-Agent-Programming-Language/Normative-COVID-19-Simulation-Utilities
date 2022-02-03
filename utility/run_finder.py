@@ -17,7 +17,7 @@ def extract_run_configuration_from_behavior_path(
         Dictionary containing the values for liberal, conservative, fatigue and fatigue_start
     """
     re_params = (
-        r"(\d+(?:\.|e-)\d+)l-(\d+(?:\.|e-)\d+)c-(\d+(?:\.|e-)\d+)f-(\d+(?:\.|e-)\d+)fs"
+        r"(\d+(?:\.|e-)\d+)l-(\d+(?:\.|e-)\d+)c-(\d+(?:\.|e-)\d+)f-(\d+(?:\.|e-)?\d+)fs"
     )
     params_match = re.findall(re_params, behavior_path)
     extracted = dict()

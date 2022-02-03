@@ -354,7 +354,7 @@ def optimization(
 @click.option(
     "--case-data-file",
     help="The file with actual case data",
-    default="external/va-counties-covid19-cases.csv",
+    default="external/va-counties-estimated-covid19-cases.csv",
 )
 @click.option(
     "--epicurve-file",
@@ -422,7 +422,7 @@ def disease(
 @click.option(
     "--case-data-file",
     help="The file with actual case data",
-    default="external/va-counties-covid19-cases.csv",
+    default="external/va-counties-estimated-covid19-cases.csv",
 )
 @click.option(
     "--epicurve-file",
@@ -727,7 +727,7 @@ def behavior_rmse(
 @click.option(
     "--case-data-file",
     help="The file with actual case data",
-    default="external/va-counties-covid19-cases.csv",
+    default="external/va-counties-estimated-covid19-cases.csv",
 )
 @click.option(
     "--default-epicurve-file-name",

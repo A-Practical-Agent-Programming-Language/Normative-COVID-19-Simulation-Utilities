@@ -25,7 +25,7 @@ class EpicurveRMSE(object):
         counties: [Dict[str, Dict[str, Any]]],
         epicurve_filename: str = "epicurve.sim2apl.csv",
         case_file: str = os.path.join(
-            get_project_root(), "va-counties-covid19-cases.csv"
+            get_project_root(), "va-counties-estimated-covid19-cases.csv"
         ),
     ):
         self.counties = counties
@@ -56,7 +56,7 @@ class EpicurveRMSE(object):
 
                 if fips not in epicurve:
                     epicurve[fips] = dict()
-                epicurve[fips][date] = int(cases)
+                epicurve[fips][date] = float(cases)
 
         return epicurve
 

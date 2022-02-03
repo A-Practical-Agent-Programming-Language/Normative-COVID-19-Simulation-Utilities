@@ -35,7 +35,7 @@ Date = str  # Date formatted as YYYY-MM-DD
     type=click.Path(file_okay=True, dir_okay=False, exists=True, resolve_path=True),
     help="Specify the file with the ground truth of real cases in this state",
     default=os.path.join(
-        get_project_root(), "external", "va-counties-covid19-cases.csv"
+        get_project_root(), "external", "va-counties-estimated-covid19-cases.csv"
     ),
     required=False,
 )

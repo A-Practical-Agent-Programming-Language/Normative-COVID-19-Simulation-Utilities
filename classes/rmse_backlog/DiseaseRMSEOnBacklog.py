@@ -13,7 +13,7 @@ class DiseaseRMSEOnBacklog(object):
         county_configuration_file: str,
         simulation_output_dir: str,
         epicurve_filename: str = "epicurve.sim2apl.csv",
-        case_file: str = os.path.join("external", "va-counties-covid19-cases.csv"),
+        case_file: str = os.path.join("external", "va-counties-estimated-covid19-cases.csv"),
         minimum_scale: int = 4,
         average_runs: bool = False,
     ):
