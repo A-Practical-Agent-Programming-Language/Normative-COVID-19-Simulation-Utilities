@@ -14,10 +14,8 @@ class DiseaseRMSEOnBacklog(object):
         simulation_output_dir: str,
         epicurve_filename: str = "epicurve.sim2apl.csv",
         case_file: str = os.path.join("external", "va-counties-estimated-covid19-cases.csv"),
-        minimum_scale: int = 4,
         average_runs: bool = False,
     ):
-        self.minimum_scale = minimum_scale
         toml_file, success = make_file_absolute(os.getcwd(), county_configuration_file)
         conf = load_toml_configuration(toml_file)
         self.average_runs = average_runs
@@ -34,15 +32,13 @@ class DiseaseRMSEOnBacklog(object):
             score: float
             if self.average_runs:
                 score = np.average(
-                    [self.rmse.calculate_rmse(key[2], [{0: x}]) for x in runs]
+                    [self.rmse.calculate_rmse([{0: x}]) for x in runs]
                 )
             else:
                 score = self.rmse.calculate_rmse(
-                    key[2], [dict(zip(range(len(runs)), runs))]
+                    [dict(zip(range(len(runs)), runs))]
                 )
 
-            if self.minimum_scale is not None and key[2] < self.minimum_scale:
-                score = 999999
             scored_runs[key] = np.average(score)
 
         return scored_runs
@@ -52,7 +48,7 @@ class DiseaseRMSEOnBacklog(object):
         best_key = sorted_runs[0]
         score = self.scored_runs[best_key]
         print(
-            "{score} was best with base infection probabilities ({0}, {1} for symptomatic and asymptomatic (scale {2} "
+            "{score} was best with base infection probabilities ({0}, {1} for symptomatic and asymptomatic "
             "agents respectively (fixed liberal: {3}, conservative: {4}, fatigue factor {5} "
             "starting after {6} time steps)".format(*best_key, score=score)
         )

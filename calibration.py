@@ -386,10 +386,9 @@ def disease(
     dc = DiseaseCalibration(**args)
 
     initial_simplex = [
-        [1, .5, 30],
-        [0.5, 0.25, 50],
-        [0.25, 0.075, 10],
-        [0.0625, 0.03125, 30],
+        [1, .5],
+        [0.25, 0.075],
+        [0.0625, 0.03125],
     ]
 
     calibrate(dc.calibrate, initial_simplex)
@@ -455,9 +454,9 @@ def disease_initial_guess_finder(
     dc.rundirectory_template = [
         "disease_initial_guess",
         "{ncounties}counties-fips-{fips}",
-        "{isymp}isymp-{iasymp}iasymp-{scaling_factor}scale-{liberal}l-{conservative}c-{fatigue}f-{fatigue_start}fs-run{run}",
+        "{isymp}isymp-{iasymp}iasymp-{liberal}l-{conservative}c-{fatigue}f-{fatigue_start}fs-run{run}",
     ]
-    dc.progress_format = "[DISEASE INITIAL GUESS] [{time}] {ncounties} counties ({fips}): {score} for isymp {x[0]} and iasymp {x[1]}, scaling {x[2]} disease calibration (dir={output_dir})\n"
+    dc.progress_format = "[DISEASE INITIAL GUESS] [{time}] {ncounties} counties ({fips}): {score} for isymp {x[0]} and iasymp {x[1]}, disease calibration (dir={output_dir})\n"
     dc.csv_log = os.path.join("output", "calibration.disease_initial_guess_finder.csv")
     dc.rundirectory_template.insert(0, args["output_dir"])
     exists = os.path.exists(dc.csv_log)
@@ -471,7 +470,7 @@ def disease_initial_guess_finder(
     asymp = .5
 
     for i in range(50):
-        dc.calibrate([symp / (2 ** i), asymp / (2 ** i), 30])
+        dc.calibrate([symp / (2 ** i), asymp / (2 ** i)])
 
 @start.command(
     name="simplerepeat",
@@ -735,28 +734,18 @@ def behavior_rmse(
     help="Specify the default name of the epicurve file that should be present in each directory",
     default="epicurve.sim2apl.csv",
 )
-@click.option(
-    "--minimum-scale-factor",
-    "-m",
-    help="Specify the minimum scale factor used. Any value below this will be ignored in the rankings",
-    default=None,
-    required=False,
-    type=int,
-)
 def disease_rmse(
     simulation_output_dir,
     county_configuration,
     average_runs,
     case_data_file,
     default_epicurve_file_name,
-    minimum_scale_factor,
 ):
     DiseaseRMSEOnBacklog(
         county_configuration,
         simulation_output_dir,
         default_epicurve_file_name,
         case_data_file,
-        minimum_scale_factor,
         average_runs,
     )
 
