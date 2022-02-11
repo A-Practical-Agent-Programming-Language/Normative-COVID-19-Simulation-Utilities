@@ -13,9 +13,9 @@ from matplotlib.ticker import MultipleLocator, PercentFormatter
 
 from classes.Epicurve_RMSE import EpicurveRMSE
 from utility import run_finder
-from utility.plots import metrics, add_norms_to_graph
+from utility.plots import metrics, add_norms_to_graph, ci_metrics
 from utility.run_finder import find_disease_runs
-from utility.utility import load_toml_configuration, get_project_root
+from utility.utility import load_toml_configuration, get_project_root, make_fips_long
 
 Path = os.PathLike or str
 Date = str  # Date formatted as YYYY-MM-DD
@@ -38,6 +38,16 @@ Date = str  # Date formatted as YYYY-MM-DD
         get_project_root(), "external", "va-counties-estimated-covid19-cases.csv"
     ),
     required=False,
+)
+@click.option(
+    "--case-estimations",
+    type=click.Path(file_okay=True, dir_okay=False, exists=True, resolve_path=True),
+    help="In order to plot the confidence interval of the estimated number of cases, provide the file that contains "
+         "that data. It is provided by the COVID-19 projections project "
+         "(https://covid19-projections.com/infections/us-va) and can be downloaded from "
+         "https://raw.githubusercontent.com/youyanggu/covid19-infection-estimates-latest/main/counties/latest_VA.csv",
+    default=None,
+    required=False
 )
 @click.option(
     "--county-configuration",
@@ -70,6 +80,13 @@ Date = str  # Date formatted as YYYY-MM-DD
     "factor should be used? (this value will be ignored if at least one of the simulation output directory"
     "names contains a scale factor value)",
 )
+@click.option(
+    "--standard-deviation",
+    type=bool,
+    default=True,
+    help="If this flag is omitted or set to true, standard deviation will be used to plot the confidence interval,"
+         "otherwise, the 95% confidence interval will be plotted"
+)
 def start_plot(**args):
     EpicurvePlotter(**args)
 
@@ -94,25 +111,28 @@ class EpicurvePlotter(object):
         table_output,
         scale_factor,
         is_experiment,
+        case_estimations,
+        standard_deviation
     ):
         self.simulation_output = simulation_output
         self.counties = load_toml_configuration(county_configuration)
         self.epicurve_RMSE = EpicurveRMSE(
             self.counties["counties"], case_file=real_cases
         )
+        self.case_estimations = case_estimations
+        self.standard_deviation = standard_deviation
 
         if is_experiment:
             merged_curves, max_agents = self.plot_unknown_experiment_runs(scale_factor)
         else:
             try:
-                merged_curves, max_agents, scale_factor = self.plot_extracted_calibration_runs()
+                merged_curves, max_agents = self.plot_extracted_calibration_runs()
             except Exception as e:
                 print(
                     "Failed to create plots. Is this the output directory of an experiment, which does not contain"
-                    "information about the run configuration employed? Then make sure to set --is-experiment to true,"
-                    "and also pass the scale factor using --scale-factor"
+                    "information about the run configuration employed? Then make sure to set --is-experiment to true"
                 )
-                print("The expection was:")
+                print("The exception was:")
                 raise e
 
         if table_output is not None:
@@ -126,18 +146,16 @@ class EpicurvePlotter(object):
         configurations = find_disease_runs(self.simulation_output)
         for configuration, run_group in configurations.items():
             rmse_group = run_finder.runs_to_rmse_list(run_group)
-            rmse = self.epicurve_RMSE.calculate_rmse(configuration[2], rmse_group)
+            rmse = self.epicurve_RMSE.calculate_rmse(rmse_group)
             print("RMSE", rmse, configuration)
-            isymp, iasymp, scale_factor = (
+            isymp, iasymp = (
                 configuration[0],
-                configuration[1],
-                configuration[2],
+                configuration[1]
             )
             curves, agents = zip(*[self.read_epicurve_file(x) for x in run_group])
             merged_curve = self.merge_curves(curves)
             self.plot_merged_curves(
                 run_group[0],
-                scale_factor,
                 merged_curve,
                 max(agents),
                 "Calibrated disease model",
@@ -150,7 +168,7 @@ class EpicurvePlotter(object):
             merged_curves[configuration] = merged_curve
             max_agents = max(max_agents, max(agents))
 
-        return merged_curves, max_agents, scale_factor
+        return merged_curves, max_agents
 
     def plot_unknown_experiment_runs(
         self, scale_factor: int
@@ -272,10 +290,39 @@ class EpicurvePlotter(object):
                 combined_observed_cases[date] += cases
         return combined_observed_cases
 
+    def get_case_certainty_intervals(self, days, max_agents):
+        infected = defaultdict(lambda: defaultdict(float))
+        fips_codes = [make_fips_long(self.counties['counties'][x]['fipscode']) for x in self.counties['counties']]
+        print(fips_codes)
+        relevant_data = [
+            ('lower', 'total_infected_lower'),
+            ('upper', 'total_infected_upper'),
+            ('mean', 'total_infected_mean'),
+            ('lower_pct', 'perc_total_infected_lower'),
+            ('upper_pct', 'perc_total_infected_upper'),
+            ('mean_pct', 'perc_total_infected_mean')
+        ]
+        encountered_fips_codes = list()
+        with open(self.case_estimations, 'r') as estimations_in:
+            headers = estimations_in.readline()[:-1].split(",")
+            print(headers)
+            for line in estimations_in:
+                data = dict(zip(headers, line[:-1].split(",")))
+                if int(data['fips']) in fips_codes and data['date'] in days:
+                    if data['fips'] not in encountered_fips_codes:
+                        encountered_fips_codes.append(data['fips'])
+                    for target, source in relevant_data:
+                        value = float(data[source]) if data[source] else math.nan
+                        infected[data['date']][target] += value
+
+        return (
+            [infected[day]['lower'] / max_agents * 100 for day in days],
+            [infected[day]['upper'] / max_agents * 100 for day in days]
+        )
+
     def plot_merged_curves(
         self,
         sample_simulation_dir: str,
-        scale_factor: int,
         curves: Dict[Date, Dict[str, List[int]]],
         max_agents: int,
         title: str,
@@ -290,7 +337,7 @@ class EpicurvePlotter(object):
 
         recovered = [curves[day]["calibration_target"] for day in days]
         recorded = [
-            cases[day] * scale_factor if day in cases else math.nan for day in days
+            cases[day] if day in cases else math.nan for day in days
         ]
 
         recovered_pct = [[r / max_agents * 100 for r in lst] for lst in recovered]
@@ -298,18 +345,34 @@ class EpicurvePlotter(object):
 
         x = np.arange(0, len(days), 1)
 
-        y_recc, y_recc_err = metrics(recovered_pct)
+        if self.standard_deviation:
+            y_recc, y_recc_err = metrics(recovered_pct)
+            lower = y_recc - y_recc_err
+            upper = y_recc + y_recc_err
+        else:
+            y_recc, lower, upper = ci_metrics(recovered_pct)
         ax.plot(x, y_recc, "k", color="#ffd320", label="Simulated")
         ax.fill_between(
             x,
-            y_recc - y_recc_err,
-            y_recc + y_recc_err,
+            lower,
+            upper,
             alpha=0.2,
             facecolor="#ffd320",
-            antialiased=True,
+            antialiased=True
         )
 
-        ax.plot(x, recorded_pct, color="blue", label=f"Real cases * {scale_factor}")
+        line = ax.plot(x, recorded_pct, color="blue", label=f"Estimated cases")[0]
+        if self.case_estimations:
+            estimations_min, estimations_max = self.get_case_certainty_intervals(days, max_agents)
+            ax.fill_between(
+                x,
+                estimations_min,
+                estimations_max,
+                alpha=0.2,
+                facecolor=line.get_color(),
+                antialiased=True
+            )
+
         add_norms_to_graph(ax, days, simulation_output_dir=sample_simulation_dir)
 
         plt.suptitle(title)

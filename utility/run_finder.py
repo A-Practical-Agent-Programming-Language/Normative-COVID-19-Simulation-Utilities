@@ -69,7 +69,10 @@ def extract_run_configuration_from_disease_path(disease_path: str) -> Dict[str, 
             ) = params_match[0]
         extracted["isymp"] = float(isymp)
         extracted["iasymp"] = float(iasymp)
-        extracted["scale"] = float(scale)
+        try:
+            extracted["scale"] = float(scale)
+        except ValueError:
+            extracted["scale"] = ''
         extracted["liberal"] = float(liberal)
         extracted["conservative"] = float(conservative)
         extracted["fatigue"] = float(fatigue)

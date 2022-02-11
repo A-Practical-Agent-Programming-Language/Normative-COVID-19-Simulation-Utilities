@@ -4,6 +4,7 @@ from typing import List
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib import lines
+from scipy import stats as st
 
 
 def metrics(measure: List[List[float]]) -> (List[float], List[float]):
@@ -20,6 +21,15 @@ def metrics(measure: List[List[float]]) -> (List[float], List[float]):
     return np.array(list(map(lambda x: np.mean(x), measure))), np.array(
         list(map(lambda x: np.std(x), measure))
     )
+
+
+def ci_metrics(measure: List[List[float]], interval=0.95) -> (List[float], List[float], List[float]):
+    mean = np.array(list(map(lambda x: np.mean(x), measure)))
+    ci = np.array(list(map(lambda x: st.t.interval(interval, len(x)-1, loc=np.mean(x), scale=st.sem(x)), measure)))
+    lower = [x[0] for x in ci]
+    upper = [x[1] for x in ci]
+
+    return mean, lower, upper
 
 
 def add_norms_to_graph(

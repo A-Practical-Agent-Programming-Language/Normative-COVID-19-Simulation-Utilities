@@ -12,6 +12,7 @@ from classes.execution.RepeatedExecution import RepeatedExecution
 from classes.execution.ScalingTestExecution import ScalingTestExecution
 from classes.execution.SensitityAnalysis import SensitivityAnalysis
 from classes.execution.SlaveCodeExecution import SlaveCodeExecution
+from classes.execution.testTrustDiscountFactor import TestTrustDiscountFactor
 from classes.rmse_backlog.DiseaseRMSEOnBacklog import DiseaseRMSEOnBacklog
 from classes.rmse_backlog.MobilityRMSEOnBacklog import MobilityRMSEOnBacklog
 from utility.utility import *
@@ -626,6 +627,28 @@ def experiment(ctx, mode_liberal, mode_conservative, fatigue, fatigue_start):
 
     experiment = NormExperiment(**args)
     experiment.initiate()
+
+
+@start.command(name="test-trust", help="Run various simulations comparing the trust discount factor impact")
+@click.option(
+    "--mode-liberal",
+    "-ml",
+    default=0.5,
+    help="Specify the mode of the government trust factor for the liberal voting agents",
+)
+@click.option(
+    "--mode-conservative",
+    "-mc",
+    default=0.5,
+    help="Specify the mode of the government trust factor for the liberal voting agents",
+)
+@click.pass_context
+def test_trust_discount(ctx, mode_liberal, mode_conservative):
+    click.echo("Starting of testing trust discount factor")
+    args = ctx.obj["args"]
+    args["mode_liberal"] = mode_liberal
+    args["mode_conservative"] = mode_conservative
+    TestTrustDiscountFactor(**args)
 
 
 @click.command(
