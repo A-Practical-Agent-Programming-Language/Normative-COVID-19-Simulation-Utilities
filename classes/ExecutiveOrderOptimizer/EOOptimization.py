@@ -441,11 +441,15 @@ class EOOptimization(CodeExecution):
             self.get_extra_java_commands = lambda: []
             self.get_base_directory = base_dir_func_backup
 
+        return self.load_norm_application_counts_from_file(filename)
+
+    @staticmethod
+    def load_norm_application_counts_from_file(filename):
         norm_counts = dict()
         with open(filename, 'r') as file_in:
             file_in.readline()  # Skip header
             for line in file_in:
-                match = re.findall(r'(\w+(?:\[[\w,;>%]+])?);(\d+);(\d+)', line)
+                match = re.findall(r'(\w+(?:\[[\w ,;>%]+])?);(\d+);(\d+)', line)
                 if match:
                     norm_counts[match[0][0]] = {'affected_agents': int(match[0][1]), 'affected_duration': int(match[0][2])}
 

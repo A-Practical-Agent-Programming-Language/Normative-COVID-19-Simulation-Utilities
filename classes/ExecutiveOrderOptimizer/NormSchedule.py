@@ -6,8 +6,12 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, List
 
-from .NormService import norms, Norm, days_between_strings, split_param_groups, DATE_FORMAT, data_point_from_date, \
-    date_from_data_point
+try:
+    from .NormService import norms, Norm, days_between_strings, split_param_groups, DATE_FORMAT, data_point_from_date, \
+        date_from_data_point
+except ImportError:
+    from NormService import norms, Norm, days_between_strings, split_param_groups, DATE_FORMAT, data_point_from_date, \
+        date_from_data_point
 
 NormByDate = Dict[str, Dict[str, List[Norm]]]
 NormEvents = Dict[str, List[Norm]]
@@ -39,6 +43,8 @@ class NormSchedule(object):
         ns = NormSchedule(base_norms, last_simulation_date)
         ns.grouped_norms = defaultdict(list)
         ns.norm_events = defaultdict(list)
+        if isinstance(last_simulation_date, str):
+            last_simulation_date = datetime.strptime(last_simulation_date, DATE_FORMAT)
 
         with open(norm_schedule_file, 'r') as norms_in:
             for line in norms_in:
@@ -52,7 +58,7 @@ class NormSchedule(object):
                         elif "," in params:
                             params = params.replace(" ", "")
                         if end == '':
-                            end = (datetime.strptime(last_simulation_date, DATE_FORMAT) + timedelta(days=10)).strftime(DATE_FORMAT)
+                            end = (last_simulation_date + timedelta(days=10)).strftime(DATE_FORMAT)
                         duration = float(days_between_strings(start, end)) / 7
                         start = data_point_from_date(datetime.strptime(start, DATE_FORMAT))
                         norm = Norm(name, start, duration, 0, params, params)
@@ -192,12 +198,40 @@ class NormSchedule(object):
         with open(filename, 'w') as fout:
             fout.write('start,norm,end,param,statement\n')
             for norm_event in sorted(list(self.norm_events.keys())):
-                for norm_instance in self.norm_events[norm_event]['start']:
+                for norm_instance in self.norm_events[norm_event]:
                     for norm in split_param_groups(norm_instance):
                         fout.write(f"{norm.start_date},{norm.name},{norm.end_date},")
                         if norm.params is not None:
                             fout.write(f'"{norm.params}"')
                         fout.write(",\n")
+
+    def remove_norms(self, norms_to_remove):
+        """
+        Remove a specific norm-event pair, or a list of norm-event pairs, from this norm schedule
+        Args:
+            norms_to_remove: Norm-event pair, or list of norm-event-pairs
+
+        Returns:
+            Absolutely nothing
+
+        """
+        if isinstance(norms_to_remove, list):
+            for norm in norms_to_remove:
+                self.remove_norms(norm)
+        else:
+            for date, events in self.norm_events.items():
+                new_events = list()
+                for event in events:
+                    if event.name == norms_to_remove[1]:
+                        if norms_to_remove[2]:
+                            params_to_remove = norms_to_remove[2].split(";")
+                            params_to_keep = [x for x in event.params.split(";") if x not in params_to_remove]
+                            event.params = ";".join(params_to_keep)
+                        else:
+                            continue
+                    if event.params is None or len(event.params):
+                        new_events.append(event)
+                self.norm_events[date] = new_events
 
     @staticmethod
     def norm_ident(norm: Norm):
@@ -368,12 +402,35 @@ if __name__ == "__main__":
         #     'EO7_duration': 3, 'EO7_start': 13,
         #     'EO8_duration': 11, 'EO8_start': 8
         #  },
-        { # after holiday fix: Default weights
-            'EO0_duration': 5, 'EO0_start': 1, 'EO1_duration': 13, 'EO1_start': 9, 'EO2_duration': 5, 'EO2_start': 1,
-            'EO3_duration': 3, 'EO3_start': 17, 'EO4_duration': 11, 'EO4_start': 14, 'EO5_duration': 7, 'EO5_start': 0,
-            'EO6_duration': 5, 'EO6_start': 4, 'EO7_duration': 10, 'EO7_start': 14, 'EO8_duration': 11, 'EO8_start': 2
-        },
-        "2020-02-28"
+        # { # after holiday fix: Default weights
+        #     'EO0_duration': 5, 'EO0_start': 1, 'EO1_duration': 13, 'EO1_start': 9, 'EO2_duration': 5, 'EO2_start': 1,
+        #     'EO3_duration': 3, 'EO3_start': 17, 'EO4_duration': 11, 'EO4_start': 14, 'EO5_duration': 7, 'EO5_start': 0,
+        #     'EO6_duration': 5, 'EO6_start': 4, 'EO7_duration': 10, 'EO7_start': 14, 'EO8_duration': 11, 'EO8_start': 2
+        # },
+        # { # JASS default weights
+        # 'EO0_duration': 1, 'EO0_start': 3, 'EO1_duration': 14, 'EO1_start': 10, 'EO2_duration': 10, 'EO2_start': 0,
+        #  'EO3_duration': 4, 'EO3_start': 16, 'EO4_duration': 14, 'EO4_start': 17, 'EO5_duration': 14, 'EO5_start': 5,
+        #  'EO6_duration': 1, 'EO6_start': 13, 'EO7_duration': 2, 'EO7_start': 13, 'EO8_duration': 16, 'EO8_start': 0},
+        # { # JASS favour economy
+        #     'EO0_duration': 17, 'EO0_start': 15, 'EO1_duration': 13, 'EO1_start': 2, 'EO2_duration': 8, 'EO2_start': 2,
+        #  'EO3_duration': 10, 'EO3_start': 5, 'EO4_duration': 5, 'EO4_start': 15, 'EO5_duration': 14, 'EO5_start': 2,
+        #  'EO6_duration': 15, 'EO6_start': 13, 'EO7_duration': 4, 'EO7_start': 14, 'EO8_duration': 11, 'EO8_start': 6},
+        # { # JASS Favour schools
+        #     'EO0_duration': 15, 'EO0_start': 6, 'EO1_duration': 10, 'EO1_start': 0, 'EO2_duration': 7, 'EO2_start': 14,
+        #  'EO3_duration': 16, 'EO3_start': 1, 'EO4_duration': 6, 'EO4_start': 13, 'EO5_duration': 16, 'EO5_start': 2,
+        #  'EO6_duration': 9, 'EO6_start': 9, 'EO7_duration': 12, 'EO7_start': 17, 'EO8_duration': 2, 'EO8_start': 3},
+
+        # { # 150 explore vs 100 exploit
+        #     'EO0_duration': 2, 'EO0_start': 9, 'EO1_duration': 11, 'EO1_start': 9, 'EO2_duration': 9, 'EO2_start': 2,
+        #  'EO3_duration': 2, 'EO3_start': 9, 'EO4_duration': 5, 'EO4_start': 8, 'EO5_duration': 2, 'EO5_start': 1,
+        #  'EO6_duration': 6, 'EO6_start': 7, 'EO7_duration': 12, 'EO7_start': 17, 'EO8_duration': 11, 'EO8_start': 2},
+
+        { # 200 explore, 50 exploit
+            'EO0_duration': 2, 'EO0_start': 9, 'EO1_duration': 11, 'EO1_start': 9, 'EO2_duration': 9, 'EO2_start': 2,
+         'EO3_duration': 2, 'EO3_start': 9, 'EO4_duration': 5, 'EO4_start': 8, 'EO5_duration': 2, 'EO5_start': 1,
+         'EO6_duration': 6, 'EO6_start': 7, 'EO7_duration': 12, 'EO7_start': 17, 'EO8_duration': 11, 'EO8_start': 2},
+
+    "2020-02-28"
     )
     ns.to_tikz("../../test-picture/test-picture.tex")
 

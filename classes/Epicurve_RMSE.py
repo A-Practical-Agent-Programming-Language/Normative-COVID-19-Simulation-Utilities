@@ -5,7 +5,11 @@ from collections import defaultdict
 from math import sqrt
 from typing import Dict, Any, List, Tuple
 
+import click
+import numpy as np
 from sklearn.metrics import mean_squared_error
+from sklearn.metrics._regression import _check_reg_targets
+from sklearn.utils import check_consistent_length
 
 from utility.utility import load_toml_configuration, get_project_root
 
@@ -24,14 +28,18 @@ class EpicurveRMSE(object):
         counties: [Dict[str, Dict[str, Any]]],
         epicurve_filename: str = "epicurve.sim2apl.csv",
         case_file: str = os.path.join(
-            get_project_root(), "va-counties-estimated-covid19-cases.csv"
+            get_project_root(), "external", "va-counties-estimated-covid19-cases.csv"
         ),
+        scale: None or float=None,
+        loss_function=mean_squared_error
     ):
         self.counties = counties
         self.__epicurve_filename = epicurve_filename
         self.case_file = case_file
         self.county_case_data = self.__load_case_data()
         self.baseline = self.__create_relevant_epicurve()
+        self.scale = scale
+        self.loss_function = loss_function
 
     def __load_case_data(self) -> Dict[int, Dict[Date, int]]:
         """
@@ -119,7 +127,7 @@ class EpicurveRMSE(object):
             for date in dates:
                 if date in self.baseline and date in predicted_for_run:
                     predicted.append(predicted_for_run[date])
-                    target.append(self.baseline[date])
+                    target.append(self.baseline[date] if self.scale is None else self.baseline[date] * self.scale)
 
         # Write values used for calculating RSME to file, so plot of fits can be created later
         for run_directory in run_directories:
@@ -139,7 +147,7 @@ class EpicurveRMSE(object):
                             f"{date},{cases},{recovered}\n"
                         )
 
-        return sqrt(mean_squared_error(target, predicted))
+        return sqrt(self.loss_function(target, predicted))
 
     @staticmethod
     def __read_all_infected_from_epicurve(run_directory: str) -> Dict[Date, int]:
@@ -156,10 +164,80 @@ class EpicurveRMSE(object):
         return epicurve
 
 
-if __name__ == "__main__":
-    t = load_toml_configuration(sys.argv[1])
+def percentage_mean_square_error(y_true, y_pred, *, sample_weight=None, multioutput="uniform_average", squared=True):
+    y_type, y_true, y_pred, multioutput = _check_reg_targets(
+        y_true, y_pred, multioutput
+    )
+    check_consistent_length(y_true, y_pred, sample_weight)
+    output_errors = np.average((y_true - y_pred / y_true) ** 2, axis=0, weights=sample_weight)
 
+    if not squared:
+        output_errors = np.sqrt(output_errors)
+
+    if isinstance(multioutput, str):
+        if multioutput == "raw_values":
+            return output_errors
+        elif multioutput == "uniform_average":
+            # pass None as weights to np.average: uniform mean
+            multioutput = None
+
+    return np.average(output_errors, weights=multioutput)
+
+
+@click.command()
+@click.option(
+    "--simulation-output",
+    "-s",
+    help="Directory containing output of one simulation, or containing multiple simulation configurations (if so, all simulations in directory will be plotted",
+    type=click.Path(exists=True, dir_okay=True, file_okay=False, resolve_path=True),
+    required=True,
+)
+@click.option(
+    "--county-configuration",
+    "-c",
+    type=click.Path(file_okay=True, dir_okay=False, exists=True, resolve_path=True),
+    help="Specify the county configuration used for this simulation run containing all simulated counties",
+    required=True,
+)
+@click.option("--percentage-instead/--no-percentage-instead", help="Calculate RMSE from percentage difference", default=False)
+@click.option(
+    "--scale-factor",
+    default=None,
+    type=float,
+    required=False
+)
+@click.option(
+    "--projections/--no-projections",
+    help="Use projected case values as target instead of confirmed cases?",
+    default=False
+)
+def calculate_RMSE_on_run(county_configuration, simulation_output, projections, scale_factor, percentage_instead):
+    t = load_toml_configuration(county_configuration)
     os.chdir("../")
-    e = EpicurveRMSE(t["counties"])
+    real_cases = os.path.join(
+        get_project_root(),
+        "external",
+        f"va-counties-{'estimated-' if projections else ''}covid19-cases.csv",
+    )
+    e = EpicurveRMSE(
+        t["counties"],
+        case_file=real_cases,
+        scale=scale_factor,
+        loss_function=percentage_mean_square_error if percentage_instead else mean_squared_error
+    )
+    if "epicurve.sim2apl.csv" in os.listdir(simulation_output):
+        runs = {0: simulation_output}
+    else:
+        runs = dict()
+        index = 0
+        for subdir in os.listdir(simulation_output):
+            abs_sub_dir = os.path.join(simulation_output, subdir)
+            if os.path.isdir(abs_sub_dir) and "epicurve.sim2apl.csv" in os.listdir(abs_sub_dir):
+                runs[index] = abs_sub_dir
+                index += 1
 
-    print(e.calculate_rmse([dict(zip(range(len(sys.argv[2:])), sys.argv[2:]))]))
+    print(e.calculate_rmse([runs]))
+
+
+if __name__ == "__main__":
+    calculate_RMSE_on_run()

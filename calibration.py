@@ -629,6 +629,53 @@ def experiment(ctx, mode_liberal, mode_conservative, fatigue, fatigue_start):
     experiment.initiate()
 
 
+@start.command(
+    name="remove-norms-experiment",
+    help="Run the remove-norms-experiment master, which runs a passed norm schedule multiple times, "
+         "with in each simulation, one of the norms or EOs removed"
+)
+@click.option(
+    "--mode-liberal",
+    "-ml",
+    default=0.5,
+    help="Specify the mode of the government trust factor for the liberal voting agents",
+)
+@click.option(
+    "--mode-conservative",
+    "-mc",
+    default=0.5,
+    help="Specify the mode of the government trust factor for the liberal voting agents",
+)
+@click.option(
+    "--fatigue",
+    help="The fatigue factor with which the agents' trust attitude will decrease each day",
+)
+@click.option(
+    "--fatigue-start",
+    help="The start time step for decreasing the agents' trust attitude with fatigue",
+)
+@click.option(
+    "--by-eo/--no-by-eo",
+    help="Should the effect of an individual norm be tested, or the effect of an entire EO?",
+    default=False
+
+)
+@click.pass_context
+def experiment(ctx, mode_liberal, mode_conservative, fatigue, fatigue_start, by_eo):
+    click.echo("Experiment started")
+    args = ctx.obj["args"]
+    args["mode_liberal"] = mode_liberal
+    args["mode_conservative"] = mode_conservative
+    args["fatigue"] = fatigue
+    args["fatigue_start"] = fatigue_start
+
+    experiment = NormExperiment(**args)
+    if by_eo:
+        experiment.run_by_removing_EOs()
+    else:
+        experiment.run_by_removing_norms()
+
+
 @start.command(name="test-trust", help="Run various simulations comparing the trust discount factor impact")
 @click.option(
     "--mode-liberal",

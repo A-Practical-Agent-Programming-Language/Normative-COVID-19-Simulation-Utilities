@@ -19,29 +19,24 @@ class TestTrustDiscountFactor(CodeExecution):
         self.random_sample = False
         self.saved_liberal = kwargs['mode_liberal']
         self.saved_conservate = kwargs['mode_conservative']
-        self.initiate()
+        # self.initiate()
+        self.run_discount_simulations(1, 1, False)
 
     def initiate(self):
-        for sample_random in [False, True]:
-            self.run_configuration['random_sample'] = sample_random
-            for use_passed_params in [False, True]:
-                if sample_random and use_passed_params:
-                    continue
-                elif use_passed_params:
-                    self.mode_liberal = self.saved_liberal
-                    self.mode_conservative = self.saved_conservate
-                else:
-                    self.mode_liberal = 0.5
-                    self.mode_conservative = 0.5
+        self.run_discount_simulations(0, 0, True)
+        for lib, cons in [(0.5, 0.5), (1, 1), (self.saved_liberal, self.saved_conservate)]:
+            self.run_discount_simulations(lib, cons, False)
 
-                self.run_configuration['mode_liberal'] = self.mode_liberal
-                self.run_configuration['mode_conservative'] = self.mode_conservative
-
-                for i in range(11):
-                    self.discount_factor = i / 10
-                    self.run_configuration['discount_factor'] = self.discount_factor
-
-                    self.calibrate(None)
+    def run_discount_simulations(self, mode_liberal, mode_conservative, sample_random):
+        self.run_configuration['random_sample'] = sample_random
+        self.mode_liberal = mode_liberal
+        self.mode_conservative = mode_conservative
+        self.run_configuration['mode_liberal'] = mode_liberal
+        self.run_configuration['mode_conservative'] = mode_conservative
+        for i in range(11):
+            self.discount_factor = i / 10
+            self.run_configuration['discount_factor'] = self.discount_factor
+            self.calibrate(None)
 
     def store_fitness_guess(self, x):
         pass

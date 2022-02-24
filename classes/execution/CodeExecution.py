@@ -24,7 +24,7 @@ class CodeExecution(object):
         "{ncounties}counties-fips-{fips}",
         "{liberal}l-{conservative}c-{fatigue}f-{fatigue_start}fs-run{run}",
     ]
-    progress_format = "[BEHAVIOR: {time}] {ncounties} counties ({fips}): {score} for government attitudes liberal={x[0]}, conservative={x[1]}, fatigue={x[2]}, fatigue_start={x[3]} (dir={output_dir})\n"
+    progress_format = "[BEHAVIOR]: {time}] {ncounties} counties ({fips}): {score} for government attitudes liberal={x[0]}, conservative={x[1]}, fatigue={x[2]}, fatigue_start={x[3]} (dir={output_dir})\n"
     target_file = ""
 
     # used to keep track of what other runs a master is waiting for
@@ -63,6 +63,7 @@ class CodeExecution(object):
         self.epicurve_filename = epicurve_file
         self.n_runs = n_runs
         self.n_steps = n_steps
+        self.output_dir = output_dir
         self.rundirectory_template.insert(0, output_dir)
 
         self.mode_liberal = mode_liberal

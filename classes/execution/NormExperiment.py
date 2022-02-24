@@ -4,6 +4,8 @@ from typing import List, Dict
 
 import toml
 
+from classes.ExecutiveOrderOptimizer import NormService
+from classes.ExecutiveOrderOptimizer.NormSchedule import NormSchedule
 from classes.execution.CodeExecution import CodeExecution
 
 
@@ -13,9 +15,9 @@ class NormExperiment(CodeExecution):
         "{ncounties}counties-fips-{fips}",
         "experiment-{experiment_index}-norms-until{experiment_max_date}-run{run}",
     ]
-    output_dir = os.path.join(".persistent", ".tmp", "norms_until_dates")
-    norm_schedule_dir = os.path.join(output_dir, "norm-schedules")
-    county_config_dir = os.path.join(output_dir, "county-configuration")
+    norm_schedule_base = os.path.join(".persistent", ".tmp", "norms_until_dates")
+    norm_schedule_dir = os.path.join(norm_schedule_base, "norm-schedules")
+    county_config_dir = os.path.join(norm_schedule_base, "county-configuration")
 
     def __init__(self, *args, **kwargs):
         super(NormExperiment, self).__init__(*args, **kwargs)
@@ -39,6 +41,54 @@ class NormExperiment(CodeExecution):
                 f"Starting {self.n_runs} runs for all norms up to and including {date}), using {self.county_configuration_file}"
             )
             self.calibrate(None)
+
+    def run_by_removing_norms(self):
+        self.update_schedule_directories("experiment-without-{removed_norm}-run{run}", "norm-schedules-with-specific-norms-removed")
+        for EO, norm_list in NormService.norms.items():
+            for norm in norm_list:
+                norm_str = norm[1]
+                if norm[2]:
+                    norm_str += '-' + norm[2].replace(",", "-for-").replace(";", "-and-")
+                norm_str = norm_str.replace(" ", "").replace("%", "pct").replace(">", "-over-")
+                print(norm_str)
+                self.run_configuration["removed_norm"] = norm_str
+                ns = NormSchedule.from_norm_schedule(self.norms_file, self.last_expected_simulation_date)
+                ns.remove_norms(norm)
+
+                norm_schedule_file = os.path.join(self.norm_schedule_dir, f"norm-schedule-without-{norm_str}.csv")
+                ns.write_to_file(norm_schedule_file)
+                self.county_configuration_file = self.update_county_configuration_file(
+                    "without-" + norm_str,
+                    norm_schedule_file
+                )
+                self.calibrate(None)
+
+    def run_by_removing_EOs(self):
+        self.update_schedule_directories("experiment-without-{removed_eo}-run{run}", "norm-schedules-with-specific-EOs-removed")
+        for EO, norm_list in NormService.norms.items():
+            self.run_configuration["removed_eo"] = EO
+            ns = NormSchedule.from_norm_schedule(self.norms_file, self.last_expected_simulation_date)
+            ns.remove_norms(norm_list)
+
+            norm_schedule_file = os.path.join(self.norm_schedule_dir, f"norm-schedule-without-{EO}.csv")
+            ns.write_to_file(norm_schedule_file)
+            self.county_configuration_file = self.update_county_configuration_file(
+                "without-" + EO, norm_schedule_file
+            )
+            self.calibrate(None)
+
+    def update_schedule_directories(self, run_directory_format, norm_schedule_format):
+        self.rundirectory_template = [
+            self.output_dir,
+            "experiment-remove-EOs",
+            "{ncounties}counties-fips-{fips}",
+            run_directory_format
+        ]
+        self.norm_schedule_base = os.path.join(".persistent", ".tmp", norm_schedule_format)
+        self.norm_schedule_dir = os.path.join(self.norm_schedule_base, "norm-schedules")
+        self.county_config_dir = os.path.join(self.norm_schedule_base, "county-configuration")
+        os.makedirs(self.norm_schedule_dir, exist_ok=True)
+        os.makedirs(self.county_config_dir, exist_ok=True)
 
     def store_fitness_guess(self, x):
         pass
