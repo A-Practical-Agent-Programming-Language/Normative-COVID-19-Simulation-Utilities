@@ -23,6 +23,7 @@ class NormExperiment(CodeExecution):
         super(NormExperiment, self).__init__(*args, **kwargs)
         os.makedirs(self.norm_schedule_dir, exist_ok=True)
         os.makedirs(self.county_config_dir, exist_ok=True)
+        self.target_file = "tick-averages.csv"
         self.original_county_configuration_file = self.county_configuration_file
         self.end_date = self.get_simulation_end_date()
         self.norms_file = self.get_norm_schedule()
@@ -44,6 +45,10 @@ class NormExperiment(CodeExecution):
 
     def run_by_removing_norms(self):
         self.update_schedule_directories("experiment-without-{removed_norm}-run{run}", "norm-schedules-with-specific-norms-removed")
+
+        expected = [1 for EO, norm_list in NormService.norms.items() for _ in norm_list]
+        print(f"Expecting {sum(expected) * self.n_runs} simulations")
+
         for EO, norm_list in NormService.norms.items():
             for norm in norm_list:
                 norm_str = norm[1]
