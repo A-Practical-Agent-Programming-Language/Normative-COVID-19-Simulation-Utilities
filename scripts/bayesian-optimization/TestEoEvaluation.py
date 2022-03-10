@@ -19,7 +19,9 @@ def load_norm_weights(norm_weights_file, affected_agents_file):
     for norm, weight in norm_weights.items():
         norms[norm]['weight'] = weight
         norms[norm]['affected'] = affected_agents[norm]['affected_agents']
+        norms[norm]['duration'] = affected_agents[norm]['affected_duration']
         norms[norm]['relative'] = weight * norms[norm]['affected']
+        norms[norm]['relative_duration'] = weight * norms[norm]['duration']
 
     return norms
 
@@ -28,28 +30,33 @@ def plot(norms, subtitle="Default Weights"):
     sorted_norms = sorted(list(norms.keys()), key=lambda x: norms[x]['weight'])
     weights = [norms[norm]['weight'] for norm in sorted_norms]
     relative = [norms[norm]['relative'] for norm in sorted_norms]
+    duration = [norms[norm]['relative_duration'] for norm in sorted_norms]
 
-    bar_width = 0.4
+    bar_width = 0.2
 
     y_pos = np.arange(len(sorted_norms))
 
     fig, ax = plt.subplots()
-    fig.set_size_inches(10,10)
+    fig.set_size_inches(10, 10)
     plt.xticks(y_pos, sorted_norms, rotation=90, ha='center')
 
-    lines = [ax.bar(y_pos - (bar_width / 2) - 0.025, weights, bar_width)]
+    lines = [ax.bar(y_pos - bar_width, weights, bar_width)]
     ax2 = ax.twinx()
     ax2._get_lines.prop_cycler = ax._get_lines.prop_cycler
     ax2._get_patches_for_fill.prop_cycler = ax._get_patches_for_fill.prop_cycler
-    lines.append(ax2.bar(y_pos + (bar_width / 2) + 0.025, relative, bar_width))
+    ax3 = ax2.twinx()
+    ax3._get_patches_for_fill.prop_cycler = ax._get_patches_for_fill.prop_cycler
+    lines.append(ax2.bar(y_pos + 0.025, relative, bar_width))
 
     ax2.hlines(norms["SchoolsClosed[K12]"]['relative'], 0, y_pos[-1], color=lines[-1].patches[0].get_facecolor())
     ax2.hlines(norms["SchoolsClosed[K12;HIGHER_EDUCATION]"]['relative'], 0, y_pos[-1], color=lines[-1].patches[0].get_facecolor())
 
+    lines.append(ax3.bar(y_pos + bar_width + 0.05, duration, bar_width))
+
     plt.suptitle("Norm weights & penalty per week active")
     plt.title(subtitle)
 
-    ax.legend(lines, ["Weight", "Penalty per Week"])
+    ax.legend(lines, ["Weight", "Penalty per Week", "If using duration"])
 
     plt.tight_layout()
     plt.savefig(

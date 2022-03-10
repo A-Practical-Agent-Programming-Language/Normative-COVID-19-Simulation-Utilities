@@ -1,0 +1,28 @@
+norm;affected;duration
+MaintainDistance;119085;20355796790
+BeachesClosed[VirginiaBeach];0;0
+SmallGroups[10,PP];114205;11732792525
+WearMasInPublicIndoor;118961;9684205610
+StayHomeSick;0;0
+TakeawayAndOutdoorOnly;0;0
+SmallGroups[250,PP];61910;3891784938
+EncourageSocialDistance;119085;20355796790
+SmallGroups[100,public];21499;1688873787
+SmallGroups[10,public];66747;3529160282
+SmallGroups[50,PP];100731;7977792377
+ReduceBusinessHours;0;0
+BusinessClosed[7 DMV offices;NEB];89046;2403396514
+ReduceBusinessCapacity[10];18151;348841354
+ReduceBusinessCapacity[75%];46701;520219594
+SchoolsClosed[K12];15786;2189120068
+EmployeesWearMask;6165;704975390
+BusinessClosed[7 DMV offices];17365;332632504
+ReduceHigherEducCapacity;0;0
+TakeawayOnly;51587;797980025
+AllowWearMask;119085;20355796790
+StayHome[all];119057;17224978792
+StayHome[age>65];20035;2414298020
+BeachesClosed[all];0;0
+SchoolsClosed[K12;HIGHER_EDUCATION];21948;2692763694
+ReduceBusinessCapacity[50%];63425;1035181544
+EncourageTelework;39570;4157310680

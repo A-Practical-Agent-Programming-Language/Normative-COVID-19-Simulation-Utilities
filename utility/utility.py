@@ -164,5 +164,12 @@ def make_fips_long(county_fips: int or str, state_fips: int or str = 51) -> int:
     return int(state_fips[: -1 * len(str(county_fips))] + str(county_fips))
 
 
-def get_project_root():
-    return Path(__file__).parent.parent
+def get_project_root(*path):
+    # root = Path(__file__).parent.parent
+    # if isinstance(path, str):
+    #     return os.path.join(root, path)
+    # elif isinstance(path, list):
+    #     return os.path.join(root, *path)
+    # else:
+    #     return root
+    return os.path.join(Path(__file__).parent.parent, *path)
