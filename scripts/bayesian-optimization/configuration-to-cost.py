@@ -11,8 +11,6 @@ the relative weight of each norm in the policy.
 
 The fitness is the negative of the number of infected agents and the cost multiplied by the global weight omega.
 
-Run this script with the location of "affected-agents-per-norm-65-75-109-540.csv" as the only argument.
-
 Note: The entire calibration process needs to be installed. In the root directory of this repository:
     $ pip install -U -e .
 
