@@ -1,15 +1,16 @@
 import json
 import os
-import random
 import re
+import shutil
 import stat
 import subprocess
-import sys
 import time
 from abc import abstractmethod
 from datetime import datetime, date
+from pathlib import Path
 from typing import List, Dict
 
+import utility.utility
 from utility.utility import get_expected_end_date
 
 
@@ -36,6 +37,8 @@ class CodeExecution(object):
         sim2apl_jar,
         counties,
         disease_model_file,
+        seed,
+        norm_schedule,
         n_cpus=1,
         java_home="java",
         java_threads=1,
@@ -72,9 +75,12 @@ class CodeExecution(object):
         self.fatigue_start = fatigue_start
 
         self.disease_model_file = disease_model_file
+        self.norm_schedule = norm_schedule
 
         self.name = name
         self.is_master = is_master
+
+        self.seed = seed
 
         # self.state_file = StateFile(self.counties).merge_from_config()
 
@@ -98,6 +104,12 @@ class CodeExecution(object):
         )
         self.lid_partition, self.pid_partition = self.get_partitions()
         self.start_time = datetime.now()
+
+        # Store relevant info for recreation later
+        p = Path(self.get_base_directory(0)).parent
+        static_data = self.create_static_data_object(p)
+        with open(os.path.join(p, 'static_data.json'), 'w') as static_data_out:
+            json.dump(static_data, static_data_out, indent=4)
 
     def get_partitions(self) -> (str, str):
         fname = f"_partition_{self.n_cpus}"
@@ -280,7 +292,7 @@ class CodeExecution(object):
         os.environ["OUTPUT_FILE"] = self.get_base_directory(
             None, 'epicurve.pansim.csv'
         )
-        os.environ["SEED"] = str(random.randrange(sys.maxsize))
+        os.environ["SEED"] = str(self.seed)
         os.environ["DISEASE_MODEL_FILE"] = self.disease_model_file
         os.environ["TICK_TIME"] = str(1)
         os.environ["NUM_TICKS"] = str(self.n_steps)
@@ -437,3 +449,63 @@ class CodeExecution(object):
     def get_extra_java_commands(self):
         """Allows implementing sub-classes to specify additional parameters for the Java behavior model"""
         return []
+
+    def create_static_data_object(self, base_path):
+        static_info = {
+            'pansim': self.get_pansim_commit(),
+            'calibration': self.get_self_commit(),
+            'sim2apl': self.get_sim2apl_commit(),
+            'seed': self.seed,
+            'runs': self.n_runs,
+            'counties': self.counties,
+            'steps': self.n_steps,
+            'mode_liberal': self.mode_liberal,
+            'mode_conservative': self.mode_conservative,
+            'fatigue': self.fatigue,
+            'fatigue_start': self.fatigue_start,
+            'start': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        }
+
+        os.makedirs(os.path.join(base_path, 'used_files'), exist_ok=True)
+        files_to_save = self.get_files_to_persist()
+        for f in files_to_save:
+            shutil.copyfile(f, os.path.join(base_path, 'used_files', Path(f).name))
+
+        return static_info
+
+    def get_files_to_persist(self):
+        return [
+            self.county_configuration_file,
+            self.norm_schedule,
+            self.disease_model_file,
+        ]
+
+    def get_self_commit(self):
+        pwd = os.getcwd()
+        os.chdir(utility.utility.get_project_root())
+        d = self.get_commit_in_pwd()
+        os.chdir(pwd)
+        return d
+
+    def get_pansim_commit(self):
+        pip_data = subprocess.check_output(['pip', 'show', 'pansim']).decode('utf-8')  #, '|', 'sed', '-nE', "'s/Location: (.*)/\1/p'"])
+        pansim_path = re.findall(r'\nLocation: (.*?)\n', pip_data)[0]
+        pwd = os.getcwd()
+        os.chdir(pansim_path)
+        d = self.get_commit_in_pwd()
+        os.chdir(pwd)
+        return d
+
+    def get_sim2apl_commit(self):
+        pwd = os.getcwd()
+        os.chdir(Path(self.sim2apl_jar).parent)
+        d = self.get_commit_in_pwd()
+        os.chdir(pwd)
+        return d
+
+    @staticmethod
+    def get_commit_in_pwd():
+        return {
+            'commit': subprocess.check_output(['git', 'rev-parse', 'HEAD']).decode('utf-8').splitlines()[0],
+            'branch': subprocess.check_output(['git', 'branch', '--show-current']).decode('utf-8').splitlines()[0]
+        }

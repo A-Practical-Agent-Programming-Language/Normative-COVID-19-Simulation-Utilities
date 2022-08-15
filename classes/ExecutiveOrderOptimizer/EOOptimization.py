@@ -100,6 +100,22 @@ class EOOptimization(CodeExecution):
             print(f"Starting as slave {self.slave_number}")
             self.iterate_as_slave()
 
+    def create_static_data_object(self, seed, base_path):
+        data = super().create_static_data_object(seed, base_path)
+        data["alpha"] = self.alpha,
+        data["societal_global_impact_weight"] = self.societal_global_impact_weight
+        data["init_points"] = self.init_points
+        data["n_iter"] = self.n_iter,
+        return data
+
+    def get_files_to_persist(self):
+        files = super().get_files_to_persist()
+        files += [
+            self.norm_weights,
+            self.norm_counts,
+        ]
+        return files
+
     def simple_test_f(self, **x):
         """
         Just a simple method that converts the 20 values x can take to a deterministic value using a polynomial function

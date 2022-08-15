@@ -6,12 +6,16 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, List
 
+import matplotlib.pyplot as plt
+import numpy as np
+from matplotlib.ticker import FixedLocator
+
 try:
     from .NormService import norms, Norm, days_between_strings, split_param_groups, DATE_FORMAT, data_point_from_date, \
-        date_from_data_point
+    date_from_data_point, key_to_norm_and_params, norms_to_new_name_map
 except ImportError:
     from NormService import norms, Norm, days_between_strings, split_param_groups, DATE_FORMAT, data_point_from_date, \
-        date_from_data_point
+        date_from_data_point, key_to_norm_and_params, norms_to_new_name_map
 
 NormByDate = Dict[str, Dict[str, List[Norm]]]
 NormEvents = Dict[str, List[Norm]]
@@ -98,6 +102,50 @@ class NormSchedule(object):
         return ns
 
     @staticmethod
+    def from_protocol_v3(protocol_v3_matrix: Dict[str, List[bool or str]], last_simulation_date: str or None = None, is_weeks=True):
+        """
+        Convert a V3 protocol to a NormSchedule object.
+        The V3 protocol is a matrix, where each key is a norm, and each value is a list,
+        representing the norm is off in a certain time interval (represented by False),
+        or on (represented by True), or on with a specific parameter configuration (represented
+        by the string representation of that parameter).
+
+        WARNING / TODO: is_weeks functionality not yet implemented
+
+        Args:
+            protocol_v3_matrix: V3 protocol matrix representing norm schedule
+            is_weeks: Each value in the matrix' list represents one week. If false, it represents one day
+
+        Returns:
+            A NormSchedule object
+        """
+        empty_schedule = dict()
+        for i in range(9):
+            empty_schedule[f"EO{i}_start"] = 100
+            empty_schedule[f"EO{i}_duration"] = 0
+        ns = NormSchedule(empty_schedule, last_simulation_date)
+        ns.grouped_norms = dict()
+        ns.norm_events = dict()
+        for norm, events in protocol_v3_matrix.items():
+            ns.grouped_norms[norm] = list()
+            start = -1
+            for i, (a, b) in enumerate(zip(events[:-1], events[1:])):
+                if a is not b and a is not False:
+                    event = Norm(norm, start+1, i-start, 0, a if a is not True else None, "")
+                    event.paper_params = norms_to_new_name_map[event.as_key()][1]
+                    ns.grouped_norms[norm].append(event)
+                    print("\t", norm, event.start, event.end)
+                if a is not b:
+                    start = i
+            if events[-1] is not False:
+                event = Norm(norm, start+1, len(events)-start-1, 0, events[-1] if events[-1] is not True else None, "")
+                event.paper_params = norms_to_new_name_map[event.as_key()][1]
+                ns.grouped_norms[norm].append(event)
+        ns.norm_events = ns.__create_event_list()
+        return ns
+
+
+    @staticmethod
     def bayesian_output_to_grouped_norms(x: Dict[str, int]) -> Dict[str, List[Norm]]:
         grouped_norms = defaultdict(list)
         for i in range(9):
@@ -177,12 +225,158 @@ class NormSchedule(object):
         return overlap
 
     def get_active_duration(self, norm_string: str):
+        norm_name, params = key_to_norm_and_params(norm_string)
+        params = params if params else None
         active_duration = 0
-        if norm_string in self.grouped_norms:
-            for norm in self.grouped_norms[norm_string]:
-                active_duration += days_between_strings(norm.start_date, norm.end_date, self.last_simulation_date)
+        if norm_name in self.grouped_norms:
+            for norm in self.grouped_norms[norm_name]:
+                if norm.params == params:
+                    active_duration += days_between_strings(norm.start_date, norm.end_date, self.last_simulation_date)
 
         return active_duration
+
+    def get_norm_event_matrix(self):
+        max_week = int(days_between_strings("2020-03-01", self.last_simulation_date) / 7)
+        matrix = defaultdict(lambda: [False] * max_week)
+        for norm_key in norms_to_new_name_map:
+            _ = matrix[norm_key]  # Ensure presence in matrix
+            norm, params = key_to_norm_and_params(norm_key)
+            for event in self.grouped_norms[norm]:
+                for i in range(event.start, min(event.end, max_week)):
+                    matrix[event.as_key()][i] = True
+
+        return matrix
+
+        # for normgroup, events in self.grouped_norms.items():
+        #     for event in events:
+        #         _ = matrix[event.as_key()]  # Ensure present in matrix
+        #         for i in range(event.start, min(event.end, max_week)):
+        #             matrix[event.as_key()][i] = True
+        #
+        # return matrix
+
+    def get_norm_event_matrix_extended(self):
+        """For the edge case where norms can be (de)activated in the middle of the week"""
+        max_days = int(days_between_strings("2020-03-01", self.last_simulation_date))
+        matrix = defaultdict(lambda: [False] * max_days)
+        for normgroup, events in self.grouped_norms.items():
+            for event in events:
+                _ = matrix[event.as_key()]
+                for i in range(round(event.start * 7), min(round(event.end * 7), max_days)):
+                    matrix[event.as_key()][i] = True
+        return matrix
+
+    def get_protocol_v3(self):
+        max_week = int(days_between_strings("2020-03-01", self.last_simulation_date) / 7)
+        matrix = defaultdict(lambda: [False] * max_week)
+        processed_norms = list()
+        for norm_key in norms_to_new_name_map:
+            norm , _ = key_to_norm_and_params(norm_key)
+            if norm in processed_norms:
+                continue
+            _ = matrix[norm]  # Ensure presence
+            processed_norms.append(norm)
+            events = self.grouped_norms[norm]
+            for event in events:
+                for i in range(event.start, min(event.end, max_week)):
+                    if matrix[norm][i] is not False:
+                        print(f"Error! Week {i} for {norm} already set to {matrix[norm][i]}. Should be {event.params}")
+                    matrix[norm][i] = event.params if event.params is not None else True
+        return matrix
+
+    def prettyprint(self, extended):
+        matrix = self.get_norm_event_matrix_extended() if extended else self.get_norm_event_matrix()
+        max_week = max([len(x) for x in matrix.values()])
+        print("".join([f"{x: {1 if extended else 7}d}" for x in range(max_week)]))
+        for norm in sorted(list(matrix.keys())):
+            if extended:
+                print("".join([u'\u2588' if x else ' ' for x in matrix[norm]]), norm)
+            else:
+                print("".join([u'\u2588\u2588\u2588\u2588\u2588\u2588' if x else '      ' for x in matrix[norm]]), norm)
+        print("".join([f"{x: {1 if extended else 6}d}" for x in range(max_week)]))
+
+    @staticmethod
+    def sort_norms(matrix):
+        norm_map = defaultdict(list)
+        for norm in matrix:
+            if norm in norms_to_new_name_map and True in matrix[norm]:
+                norm_map[norms_to_new_name_map[norm][0]].append((norm, norms_to_new_name_map[norm][1]))
+
+        nested_norm_list = list()
+        for norm in norm_map:
+            sorted_params = sorted(norm_map[norm], key=lambda x: matrix[x[0]].index(True) if True in matrix[x[0]] else -1, reverse=True)
+            nested_norm_list.append((norm, sorted_params))
+
+        s = sorted(
+            nested_norm_list,
+            reverse=True,
+            key=lambda x: matrix[x[1][-1][0]].index(True) if True in matrix[x[1][-1][0]] else -1
+        )
+
+        return s
+
+    def plot_as_timeline(self, extended=True):
+        fig, ax = plt.subplots()
+        if extended:
+            matrix = self.get_norm_event_matrix_extended()
+            x_ticks = np.arange(0, len(matrix[list(matrix.keys())[0]]))
+            width = 1
+        else:
+            matrix = self.get_norm_event_matrix()
+            width = 7
+            x_ticks = np.arange(0, len(matrix[list(matrix.keys())[0]]) * 7)
+        ax.set_xlim(0, len(x_ticks))
+        norms = self.sort_norms(matrix)
+        n_norms = sum([len(x[1]) for x in norms])
+        # TODO:
+        # - Show EO they belong to?
+        ax.set_ylim(0, n_norms + 1)
+        ax.yaxis.set_visible(False)
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        ax.spines['bottom'].set_visible(False)
+        ax.spines['left'].set_visible(False)
+
+        i = 0
+        interventions = dict()
+        for norm in norms:
+            y_pos = 1 + i
+            plt.text(0, y_pos + ((len(norm[1]) - 1) / 2), norm[0], ha='right', va='center', fontdict=dict(size=10))
+            for k, norm_param_combo in enumerate(norm[1]):
+                last_state = False
+                color = plt.get_cmap("tab20c")(len(norm[1]) - 1 - k)
+                y_pos = 1 + i
+                param_added = False
+                for j, patch in enumerate(matrix[norm_param_combo[0]]):
+                    if patch is not last_state:
+                        if patch:
+                            start = j
+                        else:
+                            ax.plot([start*width, j * width], [y_pos, y_pos], marker='o', color=color)
+                        interventions[j*width] = y_pos
+                        if not param_added and norm_param_combo[1]:
+                            plt.text(j * width - 0.3 * len(x_ticks) / (len(norms) + 1), y_pos, norm_param_combo[1], ha='right', va='center', fontdict=dict(size=7))
+                        param_added = True
+                    last_state = patch
+                if patch:
+                    ax.plot([start * width, (j + 1) * width], [y_pos, y_pos], marker='o', color=color, markevery=[0])
+                i += 1
+
+        major_tick_positions = sorted(list(set(interventions)))
+        for t in major_tick_positions:
+            plt.plot([t, t], [0, interventions[t]], color='grey', alpha=0.2, antialiased=True)
+        date_objects = [datetime(year=2020, month=3, day=1) + timedelta(days=x) for x in range(len(x_ticks))]
+        dates = [
+            datetime.strftime(x, "%b" if x.day == 1 else "%d") for x in date_objects
+        ]
+        plt.xticks(range(len(x_ticks)), dates, rotation='90', va='top', fontdict=dict(size=8))
+        major_tick_positions += [i for (i, x) in enumerate(date_objects) if x.day == 1] + [len(dates) - 1]
+        ax.xaxis.set_major_locator(FixedLocator(major_tick_positions))
+
+        fig.set_dpi(300)
+        fig.set_size_inches(7, 3.5)
+        plt.tight_layout()
+        plt.show()
 
     def __create_event_list(self):
         event_list = defaultdict(lambda: dict(start=[], end=[]))
@@ -389,8 +583,8 @@ def test_norm_schedule():
 if __name__ == "__main__":
     # test_norm_resolution()
     # test_norm_schedule()
-    # NormSchedule.from_norm_schedule("/home/jan/dev/university/2apl/simulation/sim2apl-episimpledemics/src/main/resources/norm-schedule.csv", "2020-06-28")
-    ns = NormSchedule(
+    ns = NormSchedule.from_norm_schedule("/home/jan/dev/university/2apl/simulation/sim2apl-episimpledemics/src/main/resources/norm-schedule.csv", "2020-06-28")
+    NormSchedule(
         # {  # DEFAULT_WEIGHTS
         #     'EO0_duration': 5, 'EO0_start': 16,
         #     'EO1_duration': 7, 'EO1_start': 6,
@@ -430,7 +624,9 @@ if __name__ == "__main__":
          'EO3_duration': 2, 'EO3_start': 9, 'EO4_duration': 5, 'EO4_start': 8, 'EO5_duration': 2, 'EO5_start': 1,
          'EO6_duration': 6, 'EO6_start': 7, 'EO7_duration': 12, 'EO7_start': 17, 'EO8_duration': 11, 'EO8_start': 2},
 
-    "2020-02-28"
+    "2020-06-28"
     )
-    ns.to_tikz("../../test-picture/test-picture.tex")
+    # ns.to_tikz("../../test-picture/test-picture.tex")
+    # ns.prettyprint(True)
+    ns.plot_as_timeline(True)
 

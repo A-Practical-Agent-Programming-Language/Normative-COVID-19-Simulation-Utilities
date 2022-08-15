@@ -185,7 +185,7 @@ class EpicurvePlotter(object):
             merged_curves[name] = merged_curve
             self.plot_merged_curves(
                 run_group[list(run_group.keys())[0]],
-                scale_factor,
+                # scale_factor,
                 merged_curve,
                 max(agents),
                 name,
@@ -343,25 +343,16 @@ class EpicurvePlotter(object):
         recovered_pct = [[r / max_agents * 100 for r in lst] for lst in recovered]
         recorded_pct = [r / max_agents * 100 for r in recorded]
 
-        x = np.arange(0, len(days), 1)
-
+        # x = np.arange(0, len(days), 1)
+        x = days
         if self.standard_deviation:
             y_recc, y_recc_err = metrics(recovered_pct)
             lower = y_recc - y_recc_err
             upper = y_recc + y_recc_err
         else:
             y_recc, lower, upper = ci_metrics(recovered_pct)
-        ax.plot(x, y_recc, "k", color="#ffd320", label="Simulated")
-        ax.fill_between(
-            x,
-            lower,
-            upper,
-            alpha=0.2,
-            facecolor="#ffd320",
-            antialiased=True
-        )
 
-        line = ax.plot(x, recorded_pct, color="blue", label=f"Estimated cases")[0]
+        line = ax.plot(x, recorded_pct, label=f"Estimated cases")[0]
         if self.case_estimations:
             estimations_min, estimations_max = self.get_case_certainty_intervals(days, max_agents)
             ax.fill_between(
@@ -373,22 +364,42 @@ class EpicurvePlotter(object):
                 antialiased=True
             )
 
-        add_norms_to_graph(ax, days, simulation_output_dir=sample_simulation_dir)
+        line = ax.plot(x, y_recc, label="Simulated")
+        ax.fill_between(
+            x,
+            lower,
+            upper,
+            alpha=0.2,
+            facecolor=line[0].get_color(),
+            antialiased=True
+        )
 
-        plt.suptitle(title)
-        plt.title(subtitle)
+
+
+        # add_norms_to_graph(ax, days, simulation_output_dir=sample_simulation_dir)
+
+        # plt.suptitle(title)
+        # plt.title(subtitle)
+        plt.title("COVID-19 spread")
         plt.legend()
-        plt.grid(which="both", axis="both")
+        # plt.grid(which="both", axis="both")
         plt.xlim([0, len(days)])
         plt.ylim([ax.dataLim.ymin, ax.dataLim.ymax])
 
-        plt.xticks(x, map(lambda y: y[5:], days), rotation=90)
-        ax.xaxis.set_major_locator(MultipleLocator(7))
+        # plt.xticks(x, map(lambda y: y[5:], days), rotation=90)
+        months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dec"]
+        x_ticks = [x for x in days if x.endswith("01") or x.endswith("15") or x == "2020-06-28"]
+        x_tick_labels = [x[len("2020-01-"):] if x.endswith("15") or x.endswith("28") else months[
+            int(x[len("2020-"):len("2020-") + 2]) - 1] for x in x_ticks]
+        ax.set_xticks(x_ticks, x_tick_labels)
+        # ax.xaxis.set_major_locator(MultipleLocator(7))
         ax.yaxis.set_major_formatter(PercentFormatter())
-        ax.set_ylabel("Number of agents")
-        ax.set_xlabel("Simulation day (month-day in 2020)")
+        ax.set_ylabel("Percentage of population infected")
+        ax.set_xlabel("Date in 2020")
         plt.tight_layout()
         if plot_name is not None:
+            fig.set_dpi(300)
+            fig.set_size_inches(6.8, 3.4)
             plt.savefig(plot_name, dpi=300)
         plt.show()
 
@@ -457,7 +468,7 @@ class EpicurvePlotter(object):
                     f"{name}_pct__inf",
                     f"{name}_pct__sup",
                 ]
-                for name in map(lambda x: "-".join(map(str, x)), experiments)
+                for name in experiments
             ]
             for x in sublist
         ]
@@ -540,13 +551,13 @@ class EpicurvePlotter(object):
         for i, name in enumerate(experiments):
             print(f"%{name}")
             print(
-                f"\\addplot [stack plots=y, fill=none, draw=none, forget plot]   table [x=x, y={'-'.join(map(str, name))}_pct__inf, col sep=tab]   {{data/{table_name}}} \closedcycle;"
+                f"\\addplot [stack plots=y, fill=none, draw=none, forget plot]   table [x=x, y={name}_pct__inf, col sep=tab]   {{data/{table_name}}} \closedcycle;"
             )
             print(
-                f"\\addplot [stack plots=y, fill={colors[i % len(colors)]}, fill opacity=0.15, draw opacity=0, forget plot]   table [x=x, y expr=\\thisrow{{{'-'.join(map(str, name))}_pct__sup}}-\\thisrow{{{'-'.join(map(str, name))}_pct__inf}}, col sep=tab]   {{data/{table_name}}} \closedcycle;"
+                f"\\addplot [stack plots=y, fill={colors[i % len(colors)]}, fill opacity=0.15, draw opacity=0, forget plot]   table [x=x, y expr=\\thisrow{{{name}_pct__sup}}-\\thisrow{{{name}_pct__inf}}, col sep=tab]   {{data/{table_name}}} \closedcycle;"
             )
             print(
-                f"\\addplot [stack plots=y, stack dir=minus, forget plot, draw=none] table [x=x, y={'-'.join(map(str, name))}_pct__sup] {{data/{table_name}}};"
+                f"\\addplot [stack plots=y, stack dir=minus, forget plot, draw=none] table [x=x, y={name}_pct__sup] {{data/{table_name}}};"
             )
 
         print("\n\n% Draw the lines themselves")
@@ -556,7 +567,7 @@ class EpicurvePlotter(object):
         )
         for i, name in enumerate(experiments):
             print(
-                f"\\addplot [color={colors[i % len(colors)]}, mark=*] table[x=x, y={'-'.join(map(str, name))}_pct, col sep=tab, legend] {{data/{table_name}}};"
+                f"\\addplot [color={colors[i % len(colors)]}, mark=*] table[x=x, y={name}_pct, col sep=tab, legend] {{data/{table_name}}};"
             )
 
 

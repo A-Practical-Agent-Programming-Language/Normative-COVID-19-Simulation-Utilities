@@ -18,10 +18,12 @@ import json
 import os
 import re
 import sys
+from collections import defaultdict
 
 from classes.ExecutiveOrderOptimizer.EOEvaluator import EOEvaluator
 from classes.ExecutiveOrderOptimizer.EOOptimization import EOOptimization
 from classes.ExecutiveOrderOptimizer.NormSchedule import NormSchedule
+from classes.ExecutiveOrderOptimizer.NormService import norms_to_new_name_map
 from utility.utility import get_project_root
 
 wd = sys.argv[1]
@@ -59,11 +61,8 @@ for log in progress_logs:
                         'affected_duration': int(norm_match[0][2])
                     }
         eoEvaluator = EOEvaluator(
-            0.0022626371521808136,
+            0.0007628406109972039,  # 0.0022626371521808136,
             EOOptimization.load_norm_weights(os.path.join(get_project_root(), "external", norm_weights_file)),
-            # EOOptimization.load_norm_application_counts_from_file(
-            #     os.path.join(get_project_root(), ".persistent", "affected-agents-per-norm-65-75-109-540.csv")
-            # )
             norm_counts
         )
         for simulation_directory in os.listdir(os.path.join(wd, "all-runs", "optimization")):
@@ -85,13 +84,16 @@ rundirectory_template = [
     "EO7_{x[EO7_start]}_{x[EO7_duration]}-EO8_{x[EO8_start]}_{x[EO8_duration]}-run{run}",
 ]
 
+all_policies = list()
+
 for name, log, directory, evaluator in all_runs:
-    with open(os.path.join(wd, 'all-runs', f'{name}-with-extra-progress-log.json'), 'w') as log_out:
+    policies = defaultdict(dict)
+    with open(os.path.join('/home/jan/dev/university/2apl/simulation/bayesian-optimization-cost/progress-logs', f'{name}.json'), 'w') as log_out:
+    # with open(os.path.join(wd, 'all-runs', f'{name}-with-extra-progress-log.json'), 'w') as log_out:
         with open(log, 'r') as log_in:
             for line in log_in:
                 data = json.loads(line)
                 params = EOOptimization.normalize_params(data['params'])
-                data["normalized-params"] = params
                 ns = NormSchedule(params, "2020-06-28")
                 extra_data = dict()
                 targets = list()
@@ -103,26 +105,84 @@ for name, log, directory, evaluator in all_runs:
                     )
                     target, infected, fitness = evaluator.fitness([{0: simulation_run}], ns)
                     targets.append(target)
-                    extra_data[f"run-{i}"] = dict(target=target, infected=infected, penalty=fitness)
+                    extra_data[f"run-{i}"] = dict(target=target, infected=infected, cost=fitness)
                     runs[i] = simulation_run
                 target, infected, fitness = evaluator.fitness([runs], ns)
-                data["recalculated-target"] = dict(
-                    target=target,
-                    infected=infected,
-                    fitness=fitness
-                )
-                print(target, data['target'])
 
-                # If we recalculate the weight, it becomes slightly different, but this does not seem to be the real
-                # issue?
-                # w = (-1 * target + -1 * infected) / fitness
-                # evaluator.societal_global_impact_weight = w
-                # print(w, target, evaluator.fitness([runs], ns))
-                # print(abs(w - 0.0022626371521808136), w, 0.0022626371521808136)
+                policies[ns] = dict(target=target, infected=infected, cost=fitness)
+
+                data["target"] = target,
+                data["infected"] = infected,
+                data["cost"] = fitness
+                data["params"] = ns.get_norm_event_matrix()
 
                 data["per-run-results"] = extra_data
+
+                for norm in data["params"]:
+                    from_ns = ns.get_active_duration(norm)
+                    from_matrix = sum([7 for x in data["params"][norm] if x])
+                    try:
+                        assert from_ns == from_matrix, f"Expected {from_ns} (from norm schedule) and {from_matrix} (from matrix) to be equal for norm {norm}"
+                    except AssertionError as e:
+                        print(e)
+
                 log_out.write(json.dumps(data))
                 log_out.write("\n")
+                all_policies.append(dict(params=data["params"], infected=data["infected"]))
+
+    best_policies = sorted(list(policies.keys()), key=lambda x: policies[x]['target'], reverse=True)
+    best_policy_vals = policies[best_policies[0]]
+    print("With weights {name}, the best policy had a target of {target} with {infected} infected and total cost {cost}:".format(name=name, **best_policy_vals))
+    best_policies[0].prettyprint(extended=True)
+    print(dict(best_policies[0].get_norm_event_matrix()))
+    print("\n\n")
+
+print(len(all_policies))
+
+with open(os.path.join(wd, 'all-runs', 'all-policies.json'), 'w') as all_policies_out:
+    json.dump(all_policies, all_policies_out)
+
+policy_length = [len(policy['params']) for policy in all_policies]
+print(len(policy_length), sorted(set(policy_length)))
+
+
+def copy_file_removing_unused_norms(fin, fout):
+    skipped, copied = 0, 0
+    with open(fin, 'r') as fin_stream:
+        with open(fout, 'w') as fout_stream:
+            fout_stream.write(fin_stream.readline())  # Copy header
+            for line in fin_stream:
+                if line.strip():
+                    norm = re.findall(r'(\w+(?:\[.*])?)', line)[0]
+                    if norm in norms_to_new_name_map:
+                        copied += 1
+                        fout_stream.write(line)
+                        if not line.endswith("\n"):
+                            fout_stream.write("\n")
+                    else:
+                        skipped += 1
+                        print(f"Skipping norm {norm}")
+
+    print(f"{copied} norms copied, skipped {skipped}")
+
+
+copy_file_removing_unused_norms(
+    get_project_root('.persistent/affected-agents-per-norm-65-75-109-540.csv'),
+    '/home/jan/dev/university/2apl/simulation/bayesian-optimization-cost/affected-agents-per-norm-65-75-109-540.csv'
+)
+
+for f in os.listdir(get_project_root('external')):
+    if f.startswith("norm_weights"):
+        copy_file_removing_unused_norms(
+            get_project_root('external', f),
+            f'/home/jan/dev/university/2apl/simulation/bayesian-optimization-cost/{f}'
+        )
+
+with open(os.path.join(wd, 'all-runs', 'all-policies.json'), 'w') as all_policies_out:
+    all_policies_out.write("[")
+    all_policies_out.write(",\n".join(map(json.dumps, all_policies)))
+    all_policies_out.write("]")
+
 
 
 

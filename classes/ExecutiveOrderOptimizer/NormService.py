@@ -1,3 +1,4 @@
+import re
 from datetime import datetime, timedelta
 import math
 from collections import defaultdict
@@ -27,6 +28,10 @@ class Norm(object):
     @staticmethod
     def overlaps(start, end, other: 'Norm'):
         return start < other.end and end > other.start
+
+    def as_key(self):
+        params = f"[{self.params}]" if self.params is not None else ''
+        return f"{self.name}{params}"
 
     def __str__(self):
         params = f" [{self.params}]" if self.params is not None else ''
@@ -89,6 +94,30 @@ norms = {
             (8, "SmallGroups", "50,PP", "50, \mathit{all}")
         ]
 }
+
+norms_to_new_name_map = {
+    "AllowWearMask": ("AllowMask", None),
+    "EncourageSocialDistance": ("DistanceEncouraged", None),
+    "WearMasInPublicIndoor": ("MaskIndoors", None),
+    "EmployeesWearMask": ("EmployeesMask", None),
+    "MaintainDistance": ("DistanceRequired", None),
+    "EncourageTelework": ("Telework", None),
+    "SmallGroups[100,public]": ("SmallGroups", r"$100$, public"),
+    "BusinessClosed[7 DMV offices]": ("BusinessClosed", "DMV"),
+    "StayHomeSick": ("StayHomeSick", None),
+    "StayHome[age>65]": ("StayHome", r"$age \geq 65$"),
+    "StayHome[all]": ("StayHome", r"everyone"),
+    "SmallGroups[10,public]": ("SmallGroups", r"$10$, public"),
+    "SmallGroups[50,PP]": ("SmallGroups", r"$50$, everyone"),
+    "SmallGroups[10,PP]": ("SmallGroups", r"$10$, everyone"),
+    "TakeawayOnly": ("TakeawayOnly", ""),
+    "ReduceBusinessCapacity[50%]": ("BusinessCapacity", r"$50\%$"),
+    "ReduceBusinessCapacity[10]": ("BusinessCapacity", r"$10$"),
+    "BusinessClosed[7 DMV offices;NEB]": ("BusinessClosed", r"DMV & N.E.B."),
+    "SchoolsClosed[K12]": ("SchoolsClosed", "K-12"),
+    "SchoolsClosed[K12;HIGHER_EDUCATION]": ("SchoolsClosed", "K-12 & HE")
+}
+
 
 def get_bounds():
     bounds = dict()
@@ -156,6 +185,10 @@ def test_data_point_from_date():
         start = start + timedelta(days=1)
 
     print(f"Done. {not_converting_correctly} items did not convert correctly. If this value is 0, data_point_from_time works correctly!")
+
+
+def key_to_norm_and_params(norm_key: str) -> (str, str):
+    return re.findall(r'(\w+)(?:\[([\w,;> %]+)])?', norm_key)[0]
 
 def find_duplicate_norms_in_eos():
     norm_names = defaultdict(list)

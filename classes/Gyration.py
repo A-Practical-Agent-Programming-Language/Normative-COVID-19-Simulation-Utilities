@@ -9,7 +9,7 @@ from typing import List, Dict, Any, Tuple
 import numpy as np
 from sklearn.metrics import mean_squared_error
 
-from utility.utility import get_project_root
+from utility.utility import get_project_root, load_toml_configuration
 
 Date = str
 Fips = int
@@ -168,7 +168,11 @@ class Gyration(object):
         tick_values = dict()
         with open(tick_averages_file, "r") as in_file:
             for line in in_file.read().splitlines():
-                date, fips, radius, num_agents = line.split(",")
+                if line.count(",") > 3:
+                    date, fips, radius, num_agents = line.split(",")
+                else:
+                    date, fips, radius = line.split(",")
+                    num_agents = 1
                 fips = int(fips)
                 radius = float(radius)
                 if fips not in tick_values:
@@ -483,7 +487,7 @@ if __name__ == "__main__":
 
     os.chdir("../")
     g = Gyration(
-        os.path.join("external", "va_county_mobility_index.csv"),
+        get_project_root("external", "va_county_mobility_index.csv"),
         "tick-averages.csv",
         t["counties"],
         7,

@@ -25,7 +25,7 @@ class EOEvaluator(object):
             active_duration = norm_schedule.get_active_duration(norm)
             affected_agents = self.find_number_of_agents_affected_by_norm(norm, directories)
             norm_weight = self.norm_weights[norm]
-            fitness += (active_duration * norm_weight * affected_agents)
+            fitness += active_duration * norm_weight * affected_agents
         infected = self.count_infected_agents(directories)
         final_fitness = self.societal_global_impact_weight * fitness
         return -1 * (infected + final_fitness), infected, fitness
@@ -50,7 +50,7 @@ class EOEvaluator(object):
                     headers = file_in.readline()[:-1].split(",")
                     values = file_in.readlines()[-1][:-1].split(",")
                     infected = sum(map(lambda x: int(values[headers.index(x)]), [
-                        #"expo",
+                        "expo",
                         "isymp", "iasymp", "recov"]))
                     amounts[run] += infected
         return round(np.average(list(amounts.values())))

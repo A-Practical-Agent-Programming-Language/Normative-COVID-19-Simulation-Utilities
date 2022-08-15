@@ -1,4 +1,7 @@
 #!/bin/python3
+import random
+import sys
+
 import click
 from scipy.optimize import minimize
 
@@ -9,6 +12,7 @@ from classes.execution.BehaviorCalibration import BehaviorCalibration
 from classes.execution.DiseaseCalibration import DiseaseCalibration
 from classes.execution.NormExperiment import NormExperiment
 from classes.execution.RepeatedExecution import RepeatedExecution
+from classes.execution.RunWithNormSchedules import RunWithNormSchedules
 from classes.execution.ScalingTestExecution import ScalingTestExecution
 from classes.execution.SensitityAnalysis import SensitivityAnalysis
 from classes.execution.SlaveCodeExecution import SlaveCodeExecution
@@ -122,7 +126,9 @@ def start(ctx, **kwargs):
     If changing the county, make sure to update the config files.
     """
     test_code_available(kwargs["java"])
+    seed = random.randrange(sys.maxsize)
     county_configuration = load_toml_configuration(kwargs["county_configuration"])
+    county_configuration["simulation"]["seed"] = seed
     conf_file_tmp = os.path.join(".persistent", ".tmp", "java_model_config.toml")
     if not os.path.exists(os.path.dirname(conf_file_tmp)):
         os.makedirs(os.path.dirname(conf_file_tmp))
@@ -131,14 +137,17 @@ def start(ctx, **kwargs):
 
     counties = county_configuration["counties"]
     disease_model = county_configuration["simulation"]["diseasemodel"]
+    norm_schedule = county_configuration["simulation"]["norms"]
 
     ctx.obj = dict(
         counties=counties,
         args=dict(
             county_configuration_file=conf_file_tmp,
+            seed=seed,
             sim2apl_jar=kwargs["behavior_model"],
             counties=counties,
             disease_model_file=disease_model,
+            norm_schedule=norm_schedule,
             n_cpus=kwargs["pansim_num_cpus"],
             java_home=kwargs["java"],
             java_threads=kwargs["java_num_cpus"],
@@ -509,6 +518,45 @@ def simplerepeat(ctx, mode_liberal, mode_conservative, fatigue, fatigue_start):
 
     re = RepeatedExecution(**args)
     re.calibrate(None)
+
+
+@start.command(
+    name="run-with-norm-schedules",
+    help="Simple method to run with specific norm schedules few times"
+)
+@click.option(
+    "--mode-liberal",
+    "-ml",
+    default=0.2,
+    help="Specify the mode of the government trust factor for the liberal voting agents",
+)
+@click.option(
+    "--mode-conservative",
+    "-mc",
+    default=0.2,
+    help="Specify the mode of the government trust factor for the liberal voting agents",
+)
+@click.option(
+    "--fatigue",
+    help="The fatigue factor with which the agents' trust attitude will decrease each day",
+)
+@click.option(
+    "--fatigue-start",
+    help="The start time step for decreasing the agents' trust attitude with fatigue",
+)
+@click.argument(
+    "norm_schedules",
+    nargs=-1,
+    type=click.Path(dir_okay=False, file_okay=True, exists=True)
+)
+@click.pass_context
+def run_norm_schedules(ctx, mode_liberal, mode_conservative, fatigue, fatigue_start, norm_schedules):
+    args = ctx.obj["args"]
+    args["mode_liberal"] = mode_liberal
+    args["mode_conservative"] = mode_conservative
+    args["fatigue"] = fatigue
+    args["fatigue_start"] = fatigue_start
+    RunWithNormSchedules(norm_schedules, **args)
 
 
 @start.command(
