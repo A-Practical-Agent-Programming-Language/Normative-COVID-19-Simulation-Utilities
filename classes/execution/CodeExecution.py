@@ -14,7 +14,14 @@ import utility.utility
 from utility.utility import get_expected_end_date
 
 
-class CodeExecution(object):
+class PostInitCaller(type):
+    def __call__(cls, *args, **kwargs):
+        obj = type.__call__(cls, *args, **kwargs)
+        obj.store_reproducibility_data()
+        return obj
+
+
+class CodeExecution(metaclass=PostInitCaller):
     epicurve_filename = "epicurve.csv"
     pansim_shell = ["time", "pansim", "simplesim"]
     # state_file: str
@@ -105,11 +112,14 @@ class CodeExecution(object):
         self.lid_partition, self.pid_partition = self.get_partitions()
         self.start_time = datetime.now()
 
+    def store_reproducibility_data(self):
         # Store relevant info for recreation later
         p = Path(self.get_base_directory(0)).parent
-        static_data = self.create_static_data_object(p)
-        with open(os.path.join(p, 'static_data.json'), 'w') as static_data_out:
+        now = datetime.now().strftime("%Y_%m_%dt%H_%M_%S")
+        static_data = self.create_static_data_object(p, now)
+        with open(os.path.join(p, f'static_data_{now}.json'), 'w') as static_data_out:
             json.dump(static_data, static_data_out, indent=4)
+        print(f"Stored version info in {os.path.join(p, f'static_data_{now}.json')}")
 
     def get_partitions(self) -> (str, str):
         fname = f"_partition_{self.n_cpus}"
@@ -450,8 +460,11 @@ class CodeExecution(object):
         """Allows implementing sub-classes to specify additional parameters for the Java behavior model"""
         return []
 
-    def create_static_data_object(self, base_path):
+    def create_static_data_object(self, base_path, now):
+        used_files = os.path.join(base_path, 'used_files', now)
+
         static_info = {
+            'type': type(self).__name__,
             'pansim': self.get_pansim_commit(),
             'calibration': self.get_self_commit(),
             'sim2apl': self.get_sim2apl_commit(),
@@ -466,10 +479,10 @@ class CodeExecution(object):
             'start': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         }
 
-        os.makedirs(os.path.join(base_path, 'used_files'), exist_ok=True)
+        os.makedirs(used_files, exist_ok=True)
         files_to_save = self.get_files_to_persist()
         for f in files_to_save:
-            shutil.copyfile(f, os.path.join(base_path, 'used_files', Path(f).name))
+            shutil.copyfile(f, os.path.join(used_files, Path(f).name))
 
         return static_info
 

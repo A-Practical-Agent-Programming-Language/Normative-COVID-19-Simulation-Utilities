@@ -12,6 +12,7 @@ from classes.execution.BehaviorCalibration import BehaviorCalibration
 from classes.execution.DiseaseCalibration import DiseaseCalibration
 from classes.execution.NormExperiment import NormExperiment
 from classes.execution.RepeatedExecution import RepeatedExecution
+from classes.execution.RunInitialPolicies import RunInitialPolicies
 from classes.execution.RunWithNormSchedules import RunWithNormSchedules
 from classes.execution.ScalingTestExecution import ScalingTestExecution
 from classes.execution.SensitityAnalysis import SensitivityAnalysis
@@ -557,6 +558,46 @@ def run_norm_schedules(ctx, mode_liberal, mode_conservative, fatigue, fatigue_st
     args["fatigue"] = fatigue
     args["fatigue_start"] = fatigue_start
     RunWithNormSchedules(norm_schedules, **args)
+
+
+@start.command(
+    name="initial_schedules",
+    help="Simple method to a bunch of norm schedules from a directory"
+)
+@click.option(
+    "--mode-liberal",
+    "-ml",
+    default=0.2,
+    help="Specify the mode of the government trust factor for the liberal voting agents",
+)
+@click.option(
+    "--mode-conservative",
+    "-mc",
+    default=0.2,
+    help="Specify the mode of the government trust factor for the liberal voting agents",
+)
+@click.option(
+    "--fatigue",
+    help="The fatigue factor with which the agents' trust attitude will decrease each day",
+)
+@click.option(
+    "--fatigue-start",
+    help="The start time step for decreasing the agents' trust attitude with fatigue",
+)
+@click.argument(
+    "norm_schedules",
+    nargs=1,
+    type=click.Path(dir_okay=True, file_okay=False, exists=True)
+)
+@click.pass_context
+def run_norm_schedules(ctx, mode_liberal, mode_conservative, fatigue, fatigue_start, norm_schedules):
+    args = ctx.obj["args"]
+    args["mode_liberal"] = mode_liberal
+    args["mode_conservative"] = mode_conservative
+    args["fatigue"] = fatigue
+    args["fatigue_start"] = fatigue_start
+    rip = RunInitialPolicies(norm_schedules, **args)
+    rip.run_simulations()
 
 
 @start.command(

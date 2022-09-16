@@ -1,31 +1,28 @@
-norm,weight
-AllowWearMask,0.1
-EncourageSocialDistance,0.1
-WearMasInPublicIndoor,0.1
-EmployeesWearMask,0.1
-MaintainDistance,0.1
-EncourageTelework,0.2
-BeachesClosed[VirginiaBeach],0.2
-BeachesClosed[all],0.25
-SmallGroups[100,public],0.3
-SmallGroups[250,PP],0.3
-BusinessClosed[7 DMV offices],0.3
-ReduceBusinessHours,0.3
-StayHomeSick,0.3
-StayHome[age>65],0.3
-StayHome[all],0.4
-SmallGroups[10,public],0.4
-SmallGroups[50,PP],0.45
-SmallGroups[10,PP],0.5
-TakeawayAndOutdoorOnly,0.55
-ReduceBusinessCapacity[75%],0.55
-TakeawayOnly,0.6
-ReduceBusinessCapacity[50%],0.6
-ReduceBusinessCapacity[10],0.7
-BusinessClosed[7 DMV offices;NEB],0.8
-ReduceHigherEducCapacity,0.9
-SchoolsClosed[K12],0.95
-SchoolsClosed[K12;HIGHER_EDUCATION],1
-
-
-
+norm	weight
+AllowWearMask	0.1
+EncourageSocialDistance	0.1
+WearMasInPublicIndoor	0.1
+EmployeesWearMask	0.1
+MaintainDistance	0.1
+EncourageTelework	0.2
+BeachesClosed[VirginiaBeach]	0.2
+BeachesClosed[all]	0.25
+SmallGroups[100,public]	0.3
+SmallGroups[250,PP]	0.3
+BusinessClosed[7 DMV offices]	0.3
+ReduceBusinessHours	0.3
+StayHomeSick	0.3
+StayHome[age>65]	0.3
+StayHome[all]	0.4
+SmallGroups[10,public]	0.4
+SmallGroups[50,PP]	0.45
+SmallGroups[10,PP]	0.5
+TakeawayAndOutdoorOnly	0.55
+ReduceBusinessCapacity[75%]	0.55
+TakeawayOnly	0.6
+ReduceBusinessCapacity[50%]	0.6
+ReduceBusinessCapacity[10]	0.7
+BusinessClosed[7 DMV offices;NEB]	0.8
+ReduceHigherEducCapacity	0.9
+SchoolsClosed[K12]	0.95
+SchoolsClosed[K12;HIGHER_EDUCATION]	1

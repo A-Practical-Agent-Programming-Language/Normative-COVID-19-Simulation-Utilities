@@ -52,7 +52,7 @@ class NormSchedule(object):
 
         with open(norm_schedule_file, 'r') as norms_in:
             for line in norms_in:
-                m = re.findall(r'(2020-\d{2}-\d{2}),(\w+),(2020-\d{2}-\d{2})?,("?)([\w\d>, %]*?)?\4,("?).*\6,("?).*\7,', line)
+                m = re.findall(r'(2020-\d{2}-\d{2}),(\w+),(2020-\d{2}-\d{2})?,("?)([\w\d>, %]*?)?\4,("?).*\6(?:,("?).*\7,)?', line)
                 if len(m):
                     m = m[0]
                     start, name, end, _, params, _, _ = m
@@ -68,10 +68,9 @@ class NormSchedule(object):
                         norm = Norm(name, start, duration, 0, params, params)
                         ns.grouped_norms[name].append(norm)
 
-
-        # TODO resolve:
-        #  - BusinessClosed (DMV + NEB in same)
-        #  - SchoolsClosed (K12 + HIGHER_EDUCATION)
+        # The following norms can exist in multiple configurations (i.e., with multiple parameters).
+        # The following code ensures there is no overlap between the same norm with different parameters,
+        # combining parameters where necessary
         to_resolve = ["BusinessClosed", "SchoolsClosed"]
         for resolving in to_resolve:
             new_list = list()
@@ -89,9 +88,6 @@ class NormSchedule(object):
                     new_list.append(first_norm)
             if len(ns.grouped_norms[resolving]):
                 new_list.append(ns.grouped_norms[resolving][-1])
-
-            # print(sorted(new_list, key=lambda x: (x.start, x.end)))
-            # print("\n\n")
 
             ns.grouped_norms[resolving] = new_list
 
@@ -134,7 +130,6 @@ class NormSchedule(object):
                     event = Norm(norm, start+1, i-start, 0, a if a is not True else None, "")
                     event.paper_params = norms_to_new_name_map[event.as_key()][1]
                     ns.grouped_norms[norm].append(event)
-                    print("\t", norm, event.start, event.end)
                 if a is not b:
                     start = i
             if events[-1] is not False:
@@ -247,14 +242,6 @@ class NormSchedule(object):
 
         return matrix
 
-        # for normgroup, events in self.grouped_norms.items():
-        #     for event in events:
-        #         _ = matrix[event.as_key()]  # Ensure present in matrix
-        #         for i in range(event.start, min(event.end, max_week)):
-        #             matrix[event.as_key()][i] = True
-        #
-        # return matrix
-
     def get_norm_event_matrix_extended(self):
         """For the edge case where norms can be (de)activated in the middle of the week"""
         max_days = int(days_between_strings("2020-03-01", self.last_simulation_date))
@@ -267,6 +254,7 @@ class NormSchedule(object):
         return matrix
 
     def get_protocol_v3(self):
+        rounding_error = False
         max_week = int(days_between_strings("2020-03-01", self.last_simulation_date) / 7)
         matrix = defaultdict(lambda: [False] * max_week)
         processed_norms = list()
@@ -278,11 +266,14 @@ class NormSchedule(object):
             processed_norms.append(norm)
             events = self.grouped_norms[norm]
             for event in events:
-                for i in range(event.start, min(event.end, max_week)):
+                s, e = int(event.start), min(int(event.end), max_week)
+                if s != event.start or min(event.end, max_week) != e:
+                    rounding_error = True
+                for i in range(s, e):
                     if matrix[norm][i] is not False:
                         print(f"Error! Week {i} for {norm} already set to {matrix[norm][i]}. Should be {event.params}")
                     matrix[norm][i] = event.params if event.params is not None else True
-        return matrix
+        return matrix, rounding_error
 
     def prettyprint(self, extended):
         matrix = self.get_norm_event_matrix_extended() if extended else self.get_norm_event_matrix()
@@ -379,11 +370,10 @@ class NormSchedule(object):
         plt.show()
 
     def __create_event_list(self):
-        event_list = defaultdict(lambda: dict(start=[], end=[]))
+        event_list = defaultdict(list)
         for norm_list in self.grouped_norms.values():
             for norm in norm_list:
-                event_list[norm.start]['start'].append(norm)
-                event_list[norm.end]['end'].append(norm)
+                event_list[norm.start].append(norm)
 
         return event_list
 

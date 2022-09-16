@@ -1,0 +1,22 @@
+norm	weight
+AllowWearMask	1
+MaintainDistance	1
+EncourageSocialDistance	1
+EmployeesWearMask	2
+WearMasInPublicIndoor	3
+StayHomeSick	5
+SmallGroups[100,public]	10
+EncourageTelework	10
+BusinessClosed[7 DMV offices]	10
+StayHome[age>65]	15
+SmallGroups[50,PP]	15
+SmallGroups[10,public]	15
+StayHome[all]	20
+ReduceBusinessCapacity[75%]	20
+SmallGroups[10,PP]	25
+ReduceBusinessCapacity[50%]	25
+TakeawayOnly	25
+ReduceBusinessCapacity[10]	50
+BusinessClosed[7 DMV offices;NEB]	75
+SchoolsClosed[K12;HIGHER_EDUCATION]	150
+SchoolsClosed[K12]	150

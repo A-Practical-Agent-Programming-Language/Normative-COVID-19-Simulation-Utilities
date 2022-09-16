@@ -1,0 +1,259 @@
+{
+	"AllowWearMask": [
+		{
+			"value": false,
+			"penalty": 0,
+			"threshold": 0.5,
+			"weight": 0,
+			"seconds_affected": 0
+		},
+		{
+			"value": true,
+			"penalty": 20355796790.0,
+			"threshold": 1.0,
+			"weight": 1.0,
+			"seconds_affected": 20355796790
+		}
+	],
+	"EncourageSocialDistance": [
+		{
+			"value": false,
+			"penalty": 0,
+			"threshold": 0.5,
+			"weight": 0,
+			"seconds_affected": 0
+		},
+		{
+			"value": true,
+			"penalty": 20355796790.0,
+			"threshold": 1.0,
+			"weight": 1.0,
+			"seconds_affected": 20355796790
+		}
+	],
+	"WearMasInPublicIndoor": [
+		{
+			"value": false,
+			"penalty": 0,
+			"threshold": 0.5,
+			"weight": 0,
+			"seconds_affected": 0
+		},
+		{
+			"value": true,
+			"penalty": 29052616830.0,
+			"threshold": 1.0,
+			"weight": 3.0,
+			"seconds_affected": 9684205610
+		}
+	],
+	"EmployeesWearMask": [
+		{
+			"value": false,
+			"penalty": 0,
+			"threshold": 0.5,
+			"weight": 0,
+			"seconds_affected": 0
+		},
+		{
+			"value": true,
+			"penalty": 1409950780.0,
+			"threshold": 1.0,
+			"weight": 2.0,
+			"seconds_affected": 704975390
+		}
+	],
+	"MaintainDistance": [
+		{
+			"value": false,
+			"penalty": 0,
+			"threshold": 0.5,
+			"weight": 0,
+			"seconds_affected": 0
+		},
+		{
+			"value": true,
+			"penalty": 20355796790.0,
+			"threshold": 1.0,
+			"weight": 1.0,
+			"seconds_affected": 20355796790
+		}
+	],
+	"EncourageTelework": [
+		{
+			"value": false,
+			"penalty": 0,
+			"threshold": 0.5,
+			"weight": 0,
+			"seconds_affected": 0
+		},
+		{
+			"value": true,
+			"penalty": 41573106800.0,
+			"threshold": 1.0,
+			"weight": 10.0,
+			"seconds_affected": 4157310680
+		}
+	],
+	"SmallGroups": [
+		{
+			"value": false,
+			"penalty": 0,
+			"threshold": 0.2,
+			"weight": 0,
+			"seconds_affected": 0
+		},
+		{
+			"value": "100,public",
+			"penalty": 16927901630.0,
+			"threshold": 0.4,
+			"weight": 10.0,
+			"seconds_affected": 1692790163
+		},
+		{
+			"value": "10,public",
+			"penalty": 52925110560.0,
+			"threshold": 0.6000000000000001,
+			"weight": 15.0,
+			"seconds_affected": 3528340704
+		},
+		{
+			"value": "50,public_private",
+			"penalty": 119692264005.0,
+			"threshold": 0.8,
+			"weight": 15.0,
+			"seconds_affected": 7979484267
+		},
+		{
+			"value": "10,public_private",
+			"penalty": 293021122650.0,
+			"threshold": 1.0,
+			"weight": 25.0,
+			"seconds_affected": 11720844906
+		}
+	],
+	"BusinessClosed": [
+		{
+			"value": false,
+			"penalty": 0,
+			"threshold": 0.3333333333333333,
+			"weight": 0,
+			"seconds_affected": 0
+		},
+		{
+			"value": "7 DMV offices",
+			"penalty": 2028815240.0,
+			"threshold": 0.6666666666666666,
+			"weight": 10.0,
+			"seconds_affected": 202881524
+		},
+		{
+			"value": "7 DMV offices;NEB",
+			"penalty": 303658791900.0,
+			"threshold": 1.0,
+			"weight": 75.0,
+			"seconds_affected": 4048783892
+		}
+	],
+	"StayHomeSick": [
+		{
+			"value": false,
+			"penalty": 0,
+			"threshold": 0.5,
+			"weight": 0,
+			"seconds_affected": 0
+		},
+		{
+			"value": true,
+			"penalty": 0.0,
+			"threshold": 1.0,
+			"weight": 5.0,
+			"seconds_affected": 0
+		}
+	],
+	"StayHome": [
+		{
+			"value": false,
+			"penalty": 0,
+			"threshold": 0.3333333333333333,
+			"weight": 0,
+			"seconds_affected": 0
+		},
+		{
+			"value": "age>65",
+			"penalty": 36214470300.0,
+			"threshold": 0.6666666666666666,
+			"weight": 15.0,
+			"seconds_affected": 2414298020
+		},
+		{
+			"value": "all",
+			"penalty": 344499575840.0,
+			"threshold": 1.0,
+			"weight": 20.0,
+			"seconds_affected": 17224978792
+		}
+	],
+	"TakeawayOnly": [
+		{
+			"value": false,
+			"penalty": 0,
+			"threshold": 0.5,
+			"weight": 0,
+			"seconds_affected": 0
+		},
+		{
+			"value": true,
+			"penalty": 19768506975.0,
+			"threshold": 1.0,
+			"weight": 25.0,
+			"seconds_affected": 790740279
+		}
+	],
+	"ReduceBusinessCapacity": [
+		{
+			"value": false,
+			"penalty": 0,
+			"threshold": 0.3333333333333333,
+			"weight": 0,
+			"seconds_affected": 0
+		},
+		{
+			"value": "50%",
+			"penalty": 47911655950.0,
+			"threshold": 0.6666666666666666,
+			"weight": 25.0,
+			"seconds_affected": 1916466238
+		},
+		{
+			"value": "10",
+			"penalty": 87169878250.0,
+			"threshold": 1.0,
+			"weight": 50.0,
+			"seconds_affected": 1743397565
+		}
+	],
+	"SchoolsClosed": [
+		{
+			"value": false,
+			"penalty": 0,
+			"threshold": 0.3333333333333333,
+			"weight": 0,
+			"seconds_affected": 0
+		},
+		{
+			"value": "K12",
+			"penalty": 328368010200.0,
+			"threshold": 0.6666666666666666,
+			"weight": 150.0,
+			"seconds_affected": 2189120068
+		},
+		{
+			"value": "K12;HIGHER_EDUCATION",
+			"penalty": 403914554100.0,
+			"threshold": 1.0,
+			"weight": 150.0,
+			"seconds_affected": 2692763694
+		}
+	]
+}

@@ -7,6 +7,8 @@ import sys
 import time
 from pathlib import Path
 from typing import List, Dict
+from scipy.stats.qmc import Sobol
+
 
 import toml
 from bayes_opt import BayesianOptimization
@@ -25,11 +27,11 @@ from .NormService import date_from_data_point
 class EOOptimization(CodeExecution):
     rundirectory_template = [
         "optimization",
-        "EO0_{x[EO0_start]}_{x[EO0_duration]}-"
-        "EO1_{x[EO1_start]}_{x[EO1_duration]}-EO2_{x[EO2_start]}_{x[EO2_duration]}-"
-        "EO3_{x[EO3_start]}_{x[EO3_duration]}-EO4_{x[EO4_start]}_{x[EO4_duration]}-"
-        "EO5_{x[EO5_start]}_{x[EO5_duration]}-EO6_{x[EO6_start]}_{x[EO6_duration]}-"
-        "EO7_{x[EO7_start]}_{x[EO7_duration]}-EO8_{x[EO8_start]}_{x[EO8_duration]}-run{run}",
+        # "EO0_{x[EO0_start]}_{x[EO0_duration]}-"
+        # "EO1_{x[EO1_start]}_{x[EO1_duration]}-EO2_{x[EO2_start]}_{x[EO2_duration]}-"
+        # "EO3_{x[EO3_start]}_{x[EO3_duration]}-EO4_{x[EO4_start]}_{x[EO4_duration]}-"
+        # "EO5_{x[EO5_start]}_{x[EO5_duration]}-EO6_{x[EO6_start]}_{x[EO6_duration]}-"
+        # "EO7_{x[EO7_start]}_{x[EO7_duration]}-EO8_{x[EO8_start]}_{x[EO8_duration]}-run{run}",
     ]
     progress_format = "[OPTIMIZATION] [{time}] {ncounties} counties ({fips}): {score} for x={x} policy optimization (dir={output_dir})\n"
     csv_log = os.path.join(get_project_root(), "output", "optimization.results.csv")
@@ -68,7 +70,7 @@ class EOOptimization(CodeExecution):
         norm_weights_file_name = os.path.basename(norm_weights)
         self.norm_weights_file_name = norm_weights_file_name[:norm_weights_file_name.rindex(".")]
         self.norm_weights = self.load_norm_weights(self.norm_weights_file)
-        self.norm_counts = self.load_norm_application_counts()
+        self.norm_counts_file_name, self.norm_counts = self.load_norm_application_counts()
         self.county_configuration_file_base = self.county_configuration_file
         self.rundirectory_template.insert(2, self.name)
 
@@ -95,13 +97,15 @@ class EOOptimization(CodeExecution):
 
         if self.is_master:
             print(f"Starting as master. Expecting {self.n_slaves} additional slaves")
-            self.start_optimization()
+            # self.start_optimization()
+            # TODO, we need to update this with the new bayesian optimization script
+            self.perform_initial_runs()
         else:
             print(f"Starting as slave {self.slave_number}")
             self.iterate_as_slave()
 
-    def create_static_data_object(self, seed, base_path):
-        data = super().create_static_data_object(seed, base_path)
+    def create_static_data_object(self, base_path, now):
+        data = super().create_static_data_object(base_path, now)
         data["alpha"] = self.alpha,
         data["societal_global_impact_weight"] = self.societal_global_impact_weight
         data["init_points"] = self.init_points
@@ -111,8 +115,8 @@ class EOOptimization(CodeExecution):
     def get_files_to_persist(self):
         files = super().get_files_to_persist()
         files += [
-            self.norm_weights,
-            self.norm_counts,
+            self.norm_weights_file,
+            self.norm_counts_file_name
         ]
         return files
 
@@ -241,6 +245,23 @@ class EOOptimization(CodeExecution):
 
         optimizer.dispatch(Events.OPTIMIZATION_END)
 
+    def perform_initial_runs(self):
+        n_params = 13
+        init_evals = 256  # should be a power of 2
+
+        qmc_gen = Sobol(d=n_params, scramble=True)
+        init_params = qmc_gen.random(init_evals)
+
+        # init params is now a (n_params x init_evals) sized
+        # array of floating point values in the range [0, 1]
+        # use thresholding to convert to int
+
+        for params in init_params:
+            param_dct = dict(zip(list(NormService.norms_to_new_name_map.keys()), params))
+            print(param_dct)
+            s = NormSchedule.from_protocol_v3(param_dct, "2020-06-29", True)
+            print(s)
+
     def simulation_exists(self, x_probe: Dict[str, float], run: int) -> (bool, os.PathLike):
         params = self.normalize_params(x_probe)
         path = os.path.join(*list(map(lambda t: t.format(run=run, x=params), self.rundirectory_template)))
@@ -368,11 +389,10 @@ class EOOptimization(CodeExecution):
     def load_norm_weights(norm_weights_file) -> Dict[str, float]:
         norm_weights = dict()
         with open(norm_weights_file, 'r') as norm_weights_in:
-            norm_weights_in.readline()[:-1].split(",")  # Skip header
+            norm_weights_in.readline()[:-1].split("\t")  # Skip header
             for line in norm_weights_in:
-                group = re.findall(r'([\w \[\],;>%]+),([\d.]+)', line)
-                if group:
-                    norm_weights[group[0][0]] = float(group[0][1])
+                data = line.replace("\n", "").split("\t")
+                norm_weights[data[0]] = float(data[1])
         return norm_weights
 
     def store_fitness_guess(self, x):
@@ -457,7 +477,7 @@ class EOOptimization(CodeExecution):
             self.get_extra_java_commands = lambda: []
             self.get_base_directory = base_dir_func_backup
 
-        return self.load_norm_application_counts_from_file(filename)
+        return filename, self.load_norm_application_counts_from_file(filename)
 
     @staticmethod
     def load_norm_application_counts_from_file(filename):
@@ -465,9 +485,8 @@ class EOOptimization(CodeExecution):
         with open(filename, 'r') as file_in:
             file_in.readline()  # Skip header
             for line in file_in:
-                match = re.findall(r'(\w+(?:\[[\w ,;>%]+])?);(\d+);(\d+)', line)
-                if match:
-                    norm_counts[match[0][0]] = {'affected_agents': int(match[0][1]), 'affected_duration': int(match[0][2])}
+                data = line.split("\t")
+                norm_counts[data[0]] = {'affected_agents': int(data[1]), 'affected_duration': int(data[2])}
 
         return norm_counts
 
