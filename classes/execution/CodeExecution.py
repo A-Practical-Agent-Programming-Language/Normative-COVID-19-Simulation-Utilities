@@ -518,7 +518,15 @@ class CodeExecution(metaclass=PostInitCaller):
 
     @staticmethod
     def get_commit_in_pwd():
+        branch = None
+        branches = subprocess.check_output(['git', 'branch']).splitlines()
+        for b in branches:
+            match = re.findall(r'\s*\*\s+(.*)[^ \'"]?', b.decode())
+            if len(match):
+                branch = match[0]
+                break
+
         return {
             'commit': subprocess.check_output(['git', 'rev-parse', 'HEAD']).decode('utf-8').splitlines()[0],
-            'branch': subprocess.check_output(['git', 'branch', '--show-current']).decode('utf-8').splitlines()[0]
+            'branch': branch
         }
