@@ -77,6 +77,9 @@ class RunInitialPolicies(CodeExecution):
             if os.path.exists(f):
                 shutil.copyfile(f, os.path.join(self.get_base_directory(), os.path.basename(f)))
 
+    def _process_loss(self, x: tuple, loss: float):
+        pass
+
     def score_simulation_run(self, x: tuple, directories: List[Dict[int, str]]) -> float:
         pass
 
