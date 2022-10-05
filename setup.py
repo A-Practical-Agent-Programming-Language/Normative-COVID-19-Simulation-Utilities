@@ -40,6 +40,6 @@ setup(
         "sklearn",
         "matplotlib",
         "numpy",
-        "bayesian-optimization"
+        "bayesian_optimization"
     ],
 )

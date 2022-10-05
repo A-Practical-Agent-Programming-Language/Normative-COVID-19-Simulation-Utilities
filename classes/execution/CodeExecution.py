@@ -114,7 +114,8 @@ class CodeExecution(metaclass=PostInitCaller):
 
     def store_reproducibility_data(self):
         # Store relevant info for recreation later
-        p = Path(self.get_base_directory(0)).parent
+        t = list(map(lambda x: x.format(**self.run_configuration), self.rundirectory_template[:-1]))
+        p = os.path.join(*t)
         now = datetime.now().strftime("%Y_%m_%dt%H_%M_%S")
         static_data = self.create_static_data_object(p, now)
         with open(os.path.join(p, f'static_data_{now}.json'), 'w') as static_data_out:

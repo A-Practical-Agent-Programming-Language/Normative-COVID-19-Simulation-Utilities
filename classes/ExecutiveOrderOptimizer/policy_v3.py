@@ -135,6 +135,7 @@ def create_policy_specification(norm_weights, norm_counts):
     """
     Constructs a dictionary with all the possible values each week for a norm can take
     """
+    actual_protocol = dict()
     for norm in protocol:
         penalties = list()
         for value in protocol[norm]['values']:
@@ -142,19 +143,19 @@ def create_policy_specification(norm_weights, norm_counts):
             if value is not True and value:
                 norm_key = f'{norm}[{value}]'
             weight = norm_weights[norm_key] if value else 0
-            seconds_affected = norm_counts[norm_key]["affected_duration"] if value else 0
+            seconds_affected = norm_counts[norm_key]["total_duration"] if value else 0
             penalties.append((weight * seconds_affected, weight, seconds_affected))
 
         values = protocol[norm]['values']
-        protocol[norm] = list()
+        actual_protocol[norm] = list()
 
         for i, (value, (penalty, weight, seconds_affected)) in enumerate(
                 sorted(zip(values, penalties), key=lambda x: x[1][0])):
-            protocol[norm].append(
+            actual_protocol[norm].append(
                 dict(value=value, penalty=penalty, threshold=1 / len(penalties) * (i + 1), weight=weight,
                      seconds_affected=seconds_affected))
 
-    return protocol
+    return actual_protocol
 
 
 def load_norm_weights(norm_weights_file: str) -> Dict[str, float]:

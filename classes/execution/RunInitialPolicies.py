@@ -26,7 +26,6 @@ class RunInitialPolicies(CodeExecution):
         self.target_file = "tick-averages.csv"
         self.initial_policies_location = initial_policies_location
         self.schedules = self.find_norm_schedules()
-        self.run_configuration["policy-index"] = -1
 
     def run_simulations(self):
         for schedule in self.schedules:
