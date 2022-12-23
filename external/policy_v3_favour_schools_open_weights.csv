@@ -165,10 +165,10 @@
 		},
 		{
 			"value": true,
-			"penalty": 0.0,
+			"penalty": 101778983950.0,
 			"threshold": 1.0,
 			"weight": 5.0,
-			"seconds_affected": 0
+			"seconds_affected": 20355796790
 		}
 	],
 	"StayHome": [

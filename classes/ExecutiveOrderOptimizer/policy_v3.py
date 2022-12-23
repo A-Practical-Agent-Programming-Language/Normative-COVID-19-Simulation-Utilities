@@ -1,10 +1,10 @@
 import json
 import math
 import os
-import re
 import sys
 from pathlib import Path
 from typing import List, Dict
+
 from scipy.stats.qmc import Sobol
 
 ####################################################################################################################
@@ -37,35 +37,81 @@ def generate_random_policy(n_weeks: int = 17, init_evals: int = 1):
     return policy_matrices
 
 
-def params_to_policy_v3(params: List[List[float]]):
+def params_to_policy_v3(static_params: List[List[float]], dynamic_param: List[float]):
     """
     Converts a list of 13 parameter values to a policy matrix, following Policy version 3
     Args:
-        params: List of 13 parameters, each in the range (0,1)
+        static_params: List of 13 parameters, each in the range (0,1)
 
     Returns:
         A matrix, i.e., dictionary with norms as key, and a list with norm parameters as values,
         in which each item indicates the status of that norm for a specific week
     """
-    assert len(params) == 13, ValueError("13 lists required (1 list for each norm)")
+    assert len(static_params) == 12, ValueError("13 lists required (1 list for each norm)")
     assert \
-        all(map(lambda week_list: len(week_list) == len(params[0]), params)), \
+        all(map(lambda week_list: len(week_list) == len(static_params[0]), static_params + [dynamic_param])), \
         ValueError("The list corresponding to the values for each week need to be equal length for all 13 norms")
     assert \
-        all(map(lambda week_list: all(map(lambda param: 0 <= param <= 1, week_list)), params)), \
+        all(map(lambda week_list: all(map(lambda param: 0 <= param <= 1, week_list)), static_params + [dynamic_param])), \
         ValueError("All parameters must be between 0 and 1")
 
     norm_matrix = dict()
 
-    for norm, params in zip(ordered_norms_list, params):
+    for norm, static_params in zip(ordered_norms_list['static'], static_params):
         norm_matrix[norm] = list()
-        for param in params:
-            for item in policy_specification[norm]:
+        for param in static_params:
+            for item in policy_specification['static'][norm]:
                 if item['threshold'] >= param:
                     norm_matrix[norm].append(item['value'])
                     break
+    norm_matrix['StayHomeSick'] = list()
+    for param in dynamic_param:
+        for item in policy_specification['dynamic']['StayHomeSick']:
+            if item['threshold'] >= param:
+                norm_matrix['StayHomeSick'].append(item['value'])
 
     return norm_matrix
+
+
+####################################################################################################################
+#
+#
+# Example of how to score policy based on a V3 policy
+#
+#
+####################################################################################################################
+
+def score_from_policy_v3(policy_params: Dict[str, List], infected, weights_file: str = 'weights_default_new.json') -> (float, float):
+    """
+    Calculate the policy fitness from a Policy V3 Matrix.
+    Args:
+        policy_params: The Policy V3 Matrix
+        infected: The number of agents infected during the simulation using these policy_params
+
+    Returns:
+        A tuple,
+            First element: Overall policy fitness
+            Second element: The sum of the penalties of all norms in the policy V3 Matrix
+    """
+    with open(weights_file, 'r') as weights_new_in:
+        """This is one of the files I sent you, and also the output of create_policy_specification() below"""
+        weights = json.load(weights_new_in)
+
+    sum_penalties = 0
+    for intervention, intervention_params in policy_params.items():
+        category = "dynamic" if "StayHomeSick" == intervention else "static"
+        possible_params = weights[category][intervention]
+        for intervention_param in intervention_params:
+            param = next(filter(lambda p: p["value"] == intervention_param, possible_params))
+            if intervention == "StayHomeSick":
+                penalty = round(param['seconds_affected'] * .6 * (infected / 119087))
+            else:
+                penalty = param["seconds_affected"]
+            sum_penalties += (7 * param['weight'] * penalty)
+        break
+    weighted_penalty = 1.5965549750773233e-10 * sum_penalties
+
+    return -1 * (infected + weighted_penalty), sum_penalties
 
 
 ####################################################################################################################
@@ -128,14 +174,18 @@ protocol = {
 If we want to deterministically convert a list of parameters to a policy matrix, the index of each parameter in the
 list needs to be unambiguously associated with a norm. We use alphabetic ordering to ensure this.
 """
-ordered_norms_list = sorted(list(protocol.keys()))
+static_norm_names = [p for p in protocol if p != "StayHomeSick"]
+ordered_norms_list = dict(
+    static=sorted(list(static_norm_names)),
+    dynamic=["StayHomeSick"]
+)
 
 
 def create_policy_specification(norm_weights, norm_counts):
     """
     Constructs a dictionary with all the possible values each week for a norm can take
     """
-    actual_protocol = dict()
+    actual_protocol = dict(static=dict(), dynamic=dict())
     for norm in protocol:
         penalties = list()
         for value in protocol[norm]['values']:
@@ -144,14 +194,16 @@ def create_policy_specification(norm_weights, norm_counts):
                 norm_key = f'{norm}[{value}]'
             weight = norm_weights[norm_key] if value else 0
             seconds_affected = norm_counts[norm_key]["total_duration"] if value else 0
-            penalties.append((weight * seconds_affected, weight, seconds_affected))
+            multiplier = .6 if norm == "StayHomeSick" else 1
+            penalties.append((weight * seconds_affected * multiplier, weight, seconds_affected))
 
         values = protocol[norm]['values']
-        actual_protocol[norm] = list()
+        key = 'dynamic' if norm == "StayHomeSick" else 'static'
+        actual_protocol[key][norm] = list()
 
         for i, (value, (penalty, weight, seconds_affected)) in enumerate(
                 sorted(zip(values, penalties), key=lambda x: x[1][0])):
-            actual_protocol[norm].append(
+            actual_protocol[key][norm].append(
                 dict(value=value, penalty=penalty, threshold=1 / len(penalties) * (i + 1), weight=weight,
                      seconds_affected=seconds_affected))
 
@@ -182,7 +234,7 @@ def load_affected_agents(affected_agents_file: str) -> Dict[str, Dict[str, int]]
         file_in.readline()  # Skip header
         for line in file_in:
             data = line.split("\t")
-            norm_counts[data[0]] = {'affected_agents': int(data[1]), 'affected_duration': int(data[2])}
+            norm_counts[data[0]] = {'affected_agents': int(data[1]), 'affected_duration': int(data[2]), 'total_duration': int(data[2])}
 
     return norm_counts
 
@@ -193,7 +245,7 @@ def populate_norm_schedules(total, directories):
         out_f = os.path.join(directories[i % len(directories)], "{0}", f'exploration-policy-{i}.{{1}}')
         csv_out = out_f.format("norm-schedule", "csv")
         json_out = out_f.format("protocol", "json")
-        policy_v3 = params_to_policy_v3(params)
+        policy_v3 = params_to_policy_v3(params[:-1], params[-1])
         ns = NormSchedule.from_protocol_v3(policy_v3, last_simulation_date='2020-06-28', is_weeks=True)
         ns.write_to_file(csv_out)
         os.makedirs(Path(json_out).parent, exist_ok=True)
@@ -225,10 +277,13 @@ if __name__ == "__main__":
         with open(sys.argv[3], 'w') as policy_specification_out:
             json.dump(policy_specification, policy_specification_out, indent="\t")
 
-    # Generate the random parameters for a policy
-    random_policy_params = generate_random_policy(init_evals=1)
-
-    # Generate a random policy for 14 weeks
-    policy = params_to_policy_v3(random_policy_params[0])  # List should only have one element
-
-    populate_norm_schedules(256, [get_project_root("initial_norm_schedules", f"run-{i}") for i in range(10)])
+    # # Generate the random parameters for a policy
+    # random_policy_params = generate_random_policy(init_evals=1)
+    #
+    # # Generate a random policy for 14 weeks
+    # policy = random_policy_params[0]  # We requested just one policy, so list should have just 1 element
+    # static_params = policy[:-1]
+    # dynamic_param = policy[-1]
+    # policy = params_to_policy_v3(static_params, dynamic_param)
+    #
+    # populate_norm_schedules(256, [get_project_root("initial_norm_schedules", f"run-{i}") for i in range(10)])

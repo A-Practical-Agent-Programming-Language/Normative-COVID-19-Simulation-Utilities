@@ -228,16 +228,16 @@
 			},
 			{
 				"value": "K12",
-				"penalty": 328368010200.0,
+				"penalty": 656736020400.0,
 				"threshold": 0.6666666666666666,
-				"weight": 150.0,
+				"weight": 300.0,
 				"seconds_affected": 2189120068
 			},
 			{
 				"value": "K12;HIGHER_EDUCATION",
-				"penalty": 403914554100.0,
+				"penalty": 807829108200.0,
 				"threshold": 1.0,
-				"weight": 150.0,
+				"weight": 300.0,
 				"seconds_affected": 2692763694
 			}
 		]

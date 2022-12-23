@@ -1,37 +1,28 @@
-import datetime
+import json
 import json
 import os.path
-import re
-import subprocess
-import sys
 import time
-from pathlib import Path
+from datetime import datetime
 from typing import List, Dict
-from scipy.stats.qmc import Sobol
 
-
+import numpy as np
 import toml
-from bayes_opt import BayesianOptimization
-from bayes_opt.event import Events
-from bayes_opt.logger import JSONLogger, ScreenLogger
-from bayes_opt.util import UtilityFunction
 
-from classes.ExecutiveOrderOptimizer import NormService
+import utility.utility
 from classes.ExecutiveOrderOptimizer.EOEvaluator import EOEvaluator
 from classes.ExecutiveOrderOptimizer.NormSchedule import NormSchedule
+from classes.ExecutiveOrderOptimizer.NormService import DATE_FORMAT
+from classes.ExecutiveOrderOptimizer.covid_policy_bayes_opt.bayes_policy_opt import BayesOptMinimizer, FloatArray, \
+    split_X, digitize_D, IntArray, \
+    digitize_S, WaitingForFinalEvals, MinimizationComplete
 from classes.execution.CodeExecution import CodeExecution
 from utility.utility import get_project_root
-from .NormService import date_from_data_point
 
 
 class EOOptimization(CodeExecution):
     rundirectory_template = [
         "optimization",
-        # "EO0_{x[EO0_start]}_{x[EO0_duration]}-"
-        # "EO1_{x[EO1_start]}_{x[EO1_duration]}-EO2_{x[EO2_start]}_{x[EO2_duration]}-"
-        # "EO3_{x[EO3_start]}_{x[EO3_duration]}-EO4_{x[EO4_start]}_{x[EO4_duration]}-"
-        # "EO5_{x[EO5_start]}_{x[EO5_duration]}-EO6_{x[EO6_start]}_{x[EO6_duration]}-"
-        # "EO7_{x[EO7_start]}_{x[EO7_duration]}-EO8_{x[EO8_start]}_{x[EO8_duration]}-run{run}",
+        "policy-{serialized_x}-run-{run}"
     ]
     progress_format = "[OPTIMIZATION] [{time}] {ncounties} counties ({fips}): {score} for x={x} policy optimization (dir={output_dir})\n"
     csv_log = os.path.join(get_project_root(), "output", "optimization.results.csv")
@@ -39,21 +30,22 @@ class EOOptimization(CodeExecution):
     def __init__(
             self,
             societal_global_impact_weight: float,
-            norm_weights: str,
-            alpha=0.5,
-            init_points: int = 20,
-            n_iter: int = 160,
+            policy_specification: str,
+            init_points: int = 256,
+            explore_evals: int = 32,
+            exploit_evals: int = 32,
+            kappa_initial: float = 2.576,
+            kappa_scale: float = 0.95,
             mode_liberal=0.5,
             mode_conservative=0.5,
             fatigue=0.0125,
             fatigue_start=60,
             log_location=None,
-            n_slaves=0,
-            slave_number=None,
             *args,
             **kwargs
     ):
         super(EOOptimization, self).__init__(*args, **kwargs)
+        self.target_file = "epicurve.sim2apl.csv"
         self.mode_liberal, self.mode_conservative = mode_liberal, mode_conservative
         self.fatigue, self.fatigue_start = fatigue, fatigue_start
         self.run_configuration["liberal"] = self.mode_liberal
@@ -62,30 +54,38 @@ class EOOptimization(CodeExecution):
         self.run_configuration["fatigue_start"] = self.fatigue_start
         self.instruction_dir = os.path.join(get_project_root(), ".persistent", ".tmp", self.name)
 
-        self.alpha = alpha
-        self.init_points = init_points
-        self.n_iter = n_iter
+        self.initial_evaluations = init_points
+        self.explore_evals = explore_evals
+        self.exploit_evals = exploit_evals
+        self.kappa_initial = kappa_initial
+        self.kappa_scale = kappa_scale
         self.societal_global_impact_weight = societal_global_impact_weight
-        self.norm_weights_file = norm_weights
-        norm_weights_file_name = os.path.basename(norm_weights)
-        self.norm_weights_file_name = norm_weights_file_name[:norm_weights_file_name.rindex(".")]
-        self.norm_weights = self.load_norm_weights(self.norm_weights_file)
-        self.norm_counts_file_name, self.norm_counts = self.load_norm_application_counts()
+
+        self.policy_specification_file = policy_specification
+        policy_specification_file_name = os.path.basename(policy_specification)
+        self.policy_specification_file_name = policy_specification_file_name[:policy_specification_file_name.rindex(".")]
+
+        with open(policy_specification, 'r') as policy_specification_in:
+            self.policy = json.load(policy_specification_in)
         self.county_configuration_file_base = self.county_configuration_file
         self.rundirectory_template.insert(2, self.name)
 
-        self.evaluator = EOEvaluator(societal_global_impact_weight, self.norm_weights, self.norm_counts)
+        self.static_penalty, self.dynamic_penalty = self.get_penalty()
+        self.static_policy_nvals = np.array([len(v) for v in self.static_penalty])
+        self.n_weeks = self.get_n_weeks()
+        self.evaluator = EOEvaluator(societal_global_impact_weight, policy_specification=self.policy)
+
+        simulation_end: datetime = utility.utility.get_expected_end_date(self.county_configuration_file, self.n_steps)
+        self.simulation_end = simulation_end.strftime(DATE_FORMAT)
+
 
         self.json_log = os.path.join(
             get_project_root(),
             "output",
-            f"optimization-alpha{self.alpha}-{self.norm_weights_file_name}-weight{self.societal_global_impact_weight}.json"
+            f"optimization-{self.policy_specification_file_name}-weight{self.societal_global_impact_weight}.json"
         )
         if log_location is not None:
             self.json_log = log_location
-
-        self.n_slaves = n_slaves
-        self.slave_number = slave_number
 
         if self.is_master and (self.n_slaves + 1) % self.n_runs != 0:
             print((self.n_slaves + 1) % self.n_runs)
@@ -93,262 +93,130 @@ class EOOptimization(CodeExecution):
                             f"{self.n_slaves} + 1 master process. Pick another number or create a pull request "
                             f"to deal with this case :')"))
 
-        self.n_simultaneous_runs = int((self.n_slaves + 1) / self.n_runs)
-
-        if self.is_master:
-            print(f"Starting as master. Expecting {self.n_slaves} additional slaves")
-            # self.start_optimization()
-            # TODO, we need to update this with the new bayesian optimization script
-            self.perform_initial_runs()
-        else:
+        if not self.is_master:
             print(f"Starting as slave {self.slave_number}")
             self.iterate_as_slave()
 
     def create_static_data_object(self, base_path, now):
+        # Creates an object to be exported to JSON at the start of the run, from which used parameters can be reconstructed
         data = super().create_static_data_object(base_path, now)
-        data["alpha"] = self.alpha,
         data["societal_global_impact_weight"] = self.societal_global_impact_weight
-        data["init_points"] = self.init_points
-        data["n_iter"] = self.n_iter,
+        data["initial_evaluations"] = self.initial_evaluations
+        data["explore_evals"] = self.explore_evals,
+        data["exploit_evals"] = self.exploit_evals
+        data["static_penalty"] = [list(v) for v in self.static_penalty]
+        data["dynamic_penalty"] = self.dynamic_penalty
+        data["K_(n_weeks)"] = self.n_weeks
+        data["kappa_initial"] = self.kappa_initial
+        data["kappa_scale"] = self.kappa_scale
         return data
 
+    def get_penalty(self) -> (List[FloatArray], float):
+        """
+        Returns: The static and dynamic penalties based on the provided policy specification
+        """
+        static_penalty = [np.array([x['penalty'] for x in self.policy['static'][norm]], dtype=float) for norm in sorted(self.policy['static'])]
+        dynamic_penalty = self.policy['dynamic']['StayHomeSick'][1]['penalty']
+        return static_penalty, dynamic_penalty
+
+    def get_n_weeks(self) -> int:
+        """
+        Returns: The number of weeks (I.e., the value K) the simulation will be running
+        """
+        return int(self.n_steps / 7)
+
     def get_files_to_persist(self):
+        """
+        Returns: The files that should be saved at the start of this simulation, so that we can reconstruct configuration later
+        """
         files = super().get_files_to_persist()
         files += [
-            self.norm_weights_file,
-            self.norm_counts_file_name
+            self.policy_specification_file
         ]
         return files
 
-    def simple_test_f(self, **x):
-        """
-        Just a simple method that converts the 20 values x can take to a deterministic value using a polynomial function
-        """
-        val = 0
-        x = self.normalize_params(x)
-        keys = list(x.keys())
-        for i in range(len(keys)):
-            val += (i+1) * int(round(x[keys[i]]))
-        return -1 * val
-
-    @staticmethod
-    def normalize_params(x):
-        new_x = dict()
-        for key, val in x.items():
-            new_x[key] = int(round(val))
-        return new_x
-
     def calibrate(self, **x):
-        print(x)
-        return super(EOOptimization, self).calibrate(x)
-
-    def start_optimization(self):
-        optimizer = BayesianOptimization(
-            f=None,  #self.calibrate,  # self.simple_test_f,  # flip around for quick test
-            pbounds=NormService.get_bounds(),
-            random_state=42,
-            verbose=1
+        print(self.static_penalty)
+        minimizer = BayesOptMinimizer(
+            static_penalty=self.static_penalty,
+            dynamic_penalty=self.dynamic_penalty,
+            M=len(self.static_penalty),
+            K=self.n_weeks,
+            omega=self.societal_global_impact_weight,
+            init_evals=self.initial_evaluations,
+            explore_evals=self.explore_evals,
+            exploit_evals=self.exploit_evals,
+            parallel_evals=self.n_slaves + 1,
+            kappa_initial=self.kappa_initial,
+            kappa_scale=self.kappa_scale,
         )
 
-        # if os.path.exists(self.json_log):
-        #     bayes_opt.util.load_logs(optimizer, [self.json_log])
-        # else:
-        #     with open(self.json_log, 'w') as outf:
-        #         outf.write("")
+        # TODO, if exists, load state dict
 
-        # From documentation:
-        #   "By default the previous data in the json file is removed. If you want to keep working with the same logger,
-        #   the reset paremeter in JSONLogger should be set to False."
-        # However, init does not take that parameter (yet?), so we do a workaround
-        logger = JSONLogger(path=os.path.join(get_project_root(), ".persistent", ".tmp", "tmp_bayesian_log.json"))
-        logger._path = self.json_log
+        self.start_optimization(minimizer)
 
-        optimizer.subscribe(Events.OPTIMIZATION_STEP, logger)
-        optimizer.subscribe(Events.OPTIMIZATION_END, logger)
+    def start_optimization(self, minimizer: BayesOptMinimizer):
+        finished = False
 
-        _logger = ScreenLogger(2)
-        optimizer.subscribe(Events.OPTIMIZATION_START, _logger)
-        optimizer.subscribe(Events.OPTIMIZATION_STEP, _logger)
-        optimizer.subscribe(Events.OPTIMIZATION_END, _logger)
+        initial_xs: List[FloatArray] = minimizer.get_initial_xs()
+        for x_probes in [initial_xs[i:i+self.n_slaves+1] for i in range(0, len(initial_xs), self.n_slaves+1)]:
+            self.handle_simultaneous_probes(minimizer, x_probes)
 
-        # "When dealing with functions with discrete parameters,or particularly erratic target space it
-        #  might be beneficial to increase the value of the alpha parameter.
-        #  This parameters controls how much noise the GP can handle,
-        #  so increase it whenever you think that extra flexibility is needed."
-        # optimizer.maximize(init_points=self.init_points, n_iter=self.n_iter, alpha=self.alpha, n_restarts_optimizer=0)
-        self.maximize(
-            optimizer=optimizer,
-            init_points=self.init_points,
-            n_iter=self.n_iter,
-            alpha=self.alpha,
-            n_restarts_optimizer=0
-        )
+        self.write_lines_to_progress_log([f"Finished initial {len(initial_xs)} simulations"])
 
-        print(optimizer.max)
-        print("\nScore", optimizer.max["target"] * -1)
-        for key, val in self.normalize_params(optimizer.max['params']).items():
-            print("\t", key, val)
-
-    data_points: Dict[str, float] = dict()
-
-    def maximize(self,
-                 optimizer: BayesianOptimization,
-                 init_points=5,
-                 n_iter=25,
-                 acq='ucb',
-                 kappa=2.576,
-                 kappa_decay=1,
-                 kappa_decay_delay=0,
-                 xi=0.0,
-                 **gp_params):
-        """Mazimize your function"""
-        optimizer._prime_subscriptions()
-        optimizer.dispatch(Events.OPTIMIZATION_START)
-        optimizer._prime_queue(init_points)
-        optimizer.set_gp_params(**gp_params)
-
-        util = UtilityFunction(
-            kind=acq,
-            kappa=kappa,
-            xi=xi,
-            kappa_decay=kappa_decay,
-            kappa_decay_delay=kappa_decay_delay
-        )
-        iteration = 0
-        while not optimizer._queue.empty or iteration < n_iter:
-            to_probe, number_probed = self.probe_n(optimizer, util, self.n_simultaneous_runs)
-            slave = 0
-            for i in range(self.n_simultaneous_runs):
-                for j in range(self.n_runs):
-                    if slave < self.n_slaves and not self.simulation_exists(to_probe[i], j)[0]:
-                        instructions = dict(to_probe[i])
-                        instructions["run"] = j
-                        self.leave_instructions(slave, instructions)
-                    elif slave < self.n_slaves:
-                        print("Not leaving instructions for slave", slave, "for run", j, ". The path does already exist:")
-                        print("\t", self.simulation_exists(to_probe[i], j)[1])
-                    slave += 1
-
-            instructions = dict(to_probe[-1])
-            instructions["run"] = self.n_runs - 1
-            if not self.simulation_exists(to_probe[-1], self.n_runs - 1)[0]:
-                self.do_optimization_simulation(instructions)
-            else:
-                print("Master will wait for slaves to finish. The path for run", self.n_runs - 1, "already exists:")
-                print("\t", self.simulation_exists(to_probe[-1], self.n_runs - 1)[1])
-
-            while not self.all_runs_finished(optimizer, to_probe)[0]:
-                print("Waiting for runs of slaves", ",".join(self.all_runs_finished(optimizer, to_probe)[1]), "to finish")
-                time.sleep(30)
-
-            iteration += number_probed
-
-        optimizer.dispatch(Events.OPTIMIZATION_END)
-
-    def perform_initial_runs(self):
-        n_params = 13
-        init_evals = 256  # should be a power of 2
-
-        qmc_gen = Sobol(d=n_params, scramble=True)
-        init_params = qmc_gen.random(init_evals)
-
-        # init params is now a (n_params x init_evals) sized
-        # array of floating point values in the range [0, 1]
-        # use thresholding to convert to int
-
-        for params in init_params:
-            param_dct = dict(zip(list(NormService.norms_to_new_name_map.keys()), params))
-            print(param_dct)
-            s = NormSchedule.from_protocol_v3(param_dct, "2020-06-29", True)
-            print(s)
-
-    def simulation_exists(self, x_probe: Dict[str, float], run: int) -> (bool, os.PathLike):
-        params = self.normalize_params(x_probe)
-        path = os.path.join(*list(map(lambda t: t.format(run=run, x=params), self.rundirectory_template)))
-        return os.path.exists(path), path
-
-    def probe_n(self, optimizer, util: UtilityFunction, n):
-        x_probes = list()
-        probed = 0
-        while len(x_probes) < n:
-            try:
-                x_probe = dict(zip(optimizer._space._keys, next(optimizer._queue)))
-            except StopIteration:
-                util.update_params()
-                x_probe = optimizer.suggest(util)
-                probed += 1
-
-            params = self.normalize_params(x_probe)
-            self.run_configuration["run"] = 0  # Used in formatting filename that is not used at this point
-            self.store_fitness_guess(params)
-            if self.run_configuration['policy_schedule_name'] in self.data_points:
+        while not finished:
+            to_probe = list()
+            for _ in range(self.n_slaves + 1):
                 try:
-                    optimizer.register(x_probe, self.data_points[self.run_configuration['policy_schedule_name']])
-                    print("Params already tested", params)
-                except KeyError as e:
-                    # This is stupid: Acquisition function suggests a previously probed point, and then the optimizer
-                    # fails, because the point is already registered
-                    print(f"{x_probe} already in optimizer cache! WHY WAS THIS SUGGESTED?", file=sys.stderr)
-                    print(e, file=sys.stderr)
-                probed -= 1
-            elif all([self.check_instructions_finished(x_probe, x) for x in range(self.n_runs)]):
-                print("Simulation has already been run, but had not yet been processed. Fixed now!")
-                self.deal_with_run(optimizer, x_probe)
+                    to_probe.append(minimizer.get_next_x())
+                except WaitingForFinalEvals:
+                    print("Final simulations will start")
+                    finished = True
+                except MinimizationComplete:
+                    print("These probes should not have happened!")
+                    finished = True
+
+            if len(to_probe):
+                self.handle_simultaneous_probes(minimizer, to_probe)
+
+        print("Simulation finished!")
+        best_x, penalty_mean, penalty_std = minimizer.get_best_pred()
+        print("Best policy was", best_x)
+        print(f"Penalty mean={penalty_mean} and std={penalty_std}")
+        self.write_lines_to_progress_log([
+            "Optimization finished",
+            "Best predicted policy:",
+            f"\tPenalty mean: {penalty_mean}, penalty std: {penalty_std}, {self.serialize_policy(best_x)}, {best_x}"
+        ])
+
+        for slave in range(self.n_slaves):
+            self.leave_instructions(slave, best_x, run=slave)
+        self.do_optimization_simulation(best_x, self.n_slaves)
+        while not self.all_runs_finished(minimizer, [best_x] * (self.n_slaves + 1))[0]:
+            print("Master is waiting for slaves to finish. Checking again in 30 seconds")
+            time.sleep(30)
+        self.write_lines_to_progress_log([f"Finished {self.n_slaves + 1} simulations of best predicted X"])
+
+    def handle_simultaneous_probes(self, optimizer: BayesOptMinimizer, x_probes: List[FloatArray]):
+        for x_probe, slave in zip(x_probes[1:], range(self.n_slaves)):
+            if not self.simulation_exists(x_probes[slave], run=0)[0]:
+                print(f"Leaving instructions to simulate {self.serialize_policy(x_probe)}")
+                self.leave_instructions(slave, x_probe, run=0)
             else:
-                x_probes.append(x_probe)
+                print(f"Not leaving instructions for slave {slave}; The simulation path already exists")
 
-            if optimizer._bounds_transformer:
-                optimizer.set_bounds(
-                    optimizer._bounds_transformer.transform(optimizer._space))
+        print(f"Simulating {self.serialize_policy(x_probes[0])} on master process")
+        self.do_optimization_simulation(x_probes[0], 0)
 
-        return x_probes, probed
+        while not self.all_runs_finished(optimizer, x_probes)[0]:
+            print("Master is waiting for slaves to finish. Checking again in 30 seconds")
+            time.sleep(30)
 
-    def check_instructions_finished(self, x_probe: Dict[str, float], run: int) -> bool:
-        base, progress, done = [os.path.exists(os.path.join(self.instruction_dir, f"run-{run}{t}")) for t in ["", ".progress", ".done"]]
-        return done or (not base and not progress and self.simulation_exists(x_probe, run)[0])
-
-    def all_runs_finished(self, optimizer: BayesianOptimization, x_probes: List[Dict[str, float]]) -> (bool, List[str]):
-        not_finished = list()
-        for i in range(self.n_slaves):
-            if not self.check_instructions_finished(x_probes[i % self.n_simultaneous_runs], i):
-                not_finished.append(str(i))
-
-        if len(not_finished):
-            return False, not_finished
-
-        for x_probe in x_probes:
-            self.deal_with_run(optimizer, x_probe)
-
-        for i in range(self.n_slaves):
-            if os.path.exists(os.path.join(self.instruction_dir, f"run-{i}.done")):
-                os.remove(os.path.join(self.instruction_dir, f"run-{i}.done"))
-
-        return True, []
-
-    def deal_with_run(self, optimizer: BayesianOptimization, x_probe: Dict[str, float]):
-        x_probe_copy = x_probe.copy()
-        if 'run' in x_probe_copy:
-            x_probe_copy.pop('run')
-        params = self.normalize_params(x_probe_copy)
-        run_directories = dict()
-        for i in range(self.n_simultaneous_runs):
-            run_directories[i] = os.path.join(*list(map(lambda x: x.format(run=i, x=params), self.rundirectory_template)))
-        target, infected, fitness = self.evaluator.fitness([run_directories], NormSchedule(params, "2020-06-28"))
-        self.data_points[self.run_configuration['policy_schedule_name']] = target
-        optimizer.register(x_probe_copy, target)
-
-    def leave_instructions(self, slave: int, x_probe: Dict[str, int]):
-        os.makedirs(self.instruction_dir, exist_ok=True)
-        with open(os.path.join(self.instruction_dir, f"run-{slave}"), 'w') as instructions_out:
-            instructions_out.write(json.dumps(x_probe))
-            print(f"Created instructions for slave {slave}:", x_probe)
-
-    def do_optimization_simulation(self, x: Dict[str, float]):
-        self.run_configuration["run"] = x.pop('run')
-        self.store_fitness_guess(x)
-        self.start_run_time = datetime.datetime.now()
+    def do_optimization_simulation(self, x: FloatArray, run: int):
+        self.run_configuration["run"] = run
         self.prepare_simulation_run(x)
-        if not os.path.exists(self.get_target_file()):
+
+        if not os.path.exists(self.get_target_file(0)):
             print(
                 "Starting run ",
                 self.run_configuration["run"],
@@ -366,6 +234,89 @@ class EOOptimization(CodeExecution):
                 self.get_target_file(),
             )
 
+    def prepare_simulation_run(self, x: FloatArray):
+        self.run_configuration['x'] = x
+        serialized_x = self.serialize_policy(x)
+        self.run_configuration["serialized_x"] = serialized_x
+        run = self.run_configuration["run"]
+        base = self.get_base_directory(run)
+        os.makedirs(base, exist_ok=True)
+
+        self.run_configuration['policy_schedule_name'] = self.get_base_directory(
+            run,
+            f"norm-schedule-policy-{serialized_x}-run-{run}.csv"
+        )
+        self.county_configuration_file = self.get_base_directory(
+            run,
+            f"run-configuration-policy_{serialized_x}-run-{run}.csv"
+        )
+
+        toml_config = toml.load(self.county_configuration_file_base)
+        toml_config['simulation']['norms'] = self.run_configuration['policy_schedule_name']
+
+        with open(self.county_configuration_file, 'w') as new_conf_out:
+            toml.dump(toml_config, new_conf_out)
+
+        self.run_configuration['norm_schedule'] = self.x_to_norm_schedule(x)
+        self.run_configuration['norm_schedule'].write_to_file(self.run_configuration['policy_schedule_name'])
+
+    def simulation_exists(self, x_probe: FloatArray, run: int) -> (bool, os.PathLike):
+        params = self.serialize_policy(x_probe)
+        path = os.path.join(*list(map(lambda t: t.format(run=run, serialized_x=params), self.rundirectory_template)))
+        exists = os.path.exists(path)
+        return exists, path
+
+    def check_instructions_finished(self, x_probe: FloatArray, slave: int) -> bool:
+        base, progress, done = [os.path.exists(os.path.join(self.instruction_dir, f"run-{slave}{t}")) for t in ["", ".progress", ".done"]]
+        return done or (not base and not progress and self.simulation_exists(x_probe, slave)[0])
+
+    def all_runs_finished(self, optimizer: BayesOptMinimizer, x_probes: List[FloatArray]) -> (bool, List[str]):
+        not_finished = list()
+        for i in range(self.n_slaves):
+            if not self.check_instructions_finished(x_probes[i], i):
+                not_finished.append(str(i))
+
+        if len(not_finished):
+            return False, not_finished
+
+        for x_probe in x_probes:
+            self.deal_with_run(optimizer, x_probe)
+
+        for i in range(self.n_slaves):
+            if os.path.exists(os.path.join(self.instruction_dir, f"run-{i}.done")):
+                os.remove(os.path.join(self.instruction_dir, f"run-{i}.done"))
+
+        return True, []
+
+    def deal_with_run(self, optimizer: BayesOptMinimizer, x_probe: FloatArray):
+        params = self.serialize_policy(x_probe)
+        run_directories = dict()
+        for i in range(self.n_runs):
+            run_directories[i] = os.path.join(*list(map(lambda x: x.format(run=i, x=x_probe, serialized_x=params), self.rundirectory_template)))
+
+        target, infected, fitness = self.evaluator.fitness(
+            [run_directories],
+            self.x_to_norm_schedule(x_probe)
+        )
+
+        optimizer.set_iota(x_probe, infected)
+
+        self.write_lines_to_progress_log([f"{target}, {infected}, {fitness}, {self.serialize_policy(x_probe)} {x_probe}"])
+
+    def write_lines_to_progress_log(self, lines: List[str]):
+        o = os.path.join(*self.rundirectory_template[:-1], "optimization.progress.log")
+        with open(o, 'a+') as progress_out:
+            for line in lines:
+                progress_out.write(line + "\n")
+
+    def leave_instructions(self, slave: int, x_probe: FloatArray, run: int):
+        os.makedirs(self.instruction_dir, exist_ok=True)
+        with open(os.path.join(self.instruction_dir, f"run-{slave}"), 'w') as instructions_out:
+            if len(x_probe.shape) > 1:
+                print("Ok, so our x_probe array is multi-dimensional, now we have a problem:", x_probe.shape)
+            json.dump(dict(x_probe=list(x_probe), run=run, serialized=self.serialize_policy(x_probe)), instructions_out, indent=1)
+            print(f"Created instructions for slave {slave}:", x_probe)
+
     def iterate_as_slave(self):
         instruction_file = os.path.join(self.instruction_dir, f"run-{self.slave_number}")
         progress_file = os.path.join(self.instruction_dir, f"run-{self.slave_number}.progress")
@@ -377,12 +328,13 @@ class EOOptimization(CodeExecution):
                 print(f"Waiting for file {instruction_file} to appear")
                 time.sleep(30)
 
-            xprobe: Dict[str, int]
             with open(instruction_file, 'r') as instructions_in:
-                x_probe = json.loads(instructions_in.read())
-                print("Instructions found!", x_probe)
+                instructions = json.load(instructions_in)
+                print("Instructions found!")
+            x_probe = np.asarray(instructions["x_probe"])
+            run = instructions["run"]
             os.rename(instruction_file, progress_file)
-            self.do_optimization_simulation(x_probe)
+            self.do_optimization_simulation(x_probe, run)
             os.rename(progress_file, done_file)
 
     @staticmethod
@@ -395,50 +347,6 @@ class EOOptimization(CodeExecution):
                 norm_weights[data[0]] = float(data[1])
         return norm_weights
 
-    def store_fitness_guess(self, x):
-        x = self.normalize_params(x)
-        self.run_configuration['x'] = x
-        self.run_configuration['norm_schedule'] = NormSchedule(x, "2020-06-28")
-        self.run_configuration['policy_schedule_name'] = os.path.join(
-            get_project_root(),
-            '.persistent',
-            'policies',
-            f'{self.alpha}-{self.societal_global_impact_weight}-{self.norm_weights_file_name}',
-            "norm-schedule-policy-EO0_{EO0_start}_{EO0_duration}-"
-            "EO1_{EO1_start}_{EO1_duration}-EO2_{EO2_start}_{EO2_duration}-"
-            "EO3_{EO3_start}_{EO3_duration}-EO4_{EO4_start}_{EO4_duration}-"
-            "EO5_{EO5_start}_{EO5_duration}-EO6_{EO6_start}_{EO6_duration}-"
-            "EO7_{EO7_start}_{EO7_duration}-EO8_{EO8_start}_{EO8_duration}-run{run}.csv".format(
-                run=self.run_configuration['run'], **x
-            )
-        )
-
-    def prepare_simulation_run(self, x):
-        x = self.normalize_params(x)
-        self.run_configuration['norm_schedule'].write_to_file(self.run_configuration['policy_schedule_name'])
-        toml_config = toml.load(self.county_configuration_file_base)
-        toml_config['simulation']['norms'] = self.run_configuration['policy_schedule_name']
-
-        self.county_configuration_file = os.path.join(
-            get_project_root(),
-            ".persistent",
-            'policies',
-            f'{self.alpha}-{self.societal_global_impact_weight}-{self.norm_weights_file_name}',
-            'configuration',
-            "norm-schedule-policy-EO0_{EO0_start}_{EO0_duration}-"
-            "EO1_{EO1_start}_{EO1_duration}-EO2_{EO2_start}_{EO2_duration}-"
-            "EO3_{EO3_start}_{EO3_duration}-EO4_{EO4_start}_{EO4_duration}-"
-            "EO5_{EO5_start}_{EO5_duration}-EO6_{EO6_start}_{EO6_duration}-"
-            "EO7_{EO7_start}_{EO7_duration}-EO8_{EO8_start}_{EO8_duration}-run{run}.toml".format(
-                run=self.run_configuration["run"], **x
-            )
-        )
-
-        os.makedirs(Path(self.county_configuration_file).parent.absolute(), exist_ok=True)
-
-        with open(self.county_configuration_file, 'w') as new_conf_out:
-            toml.dump(toml_config, new_conf_out)
-
     def score_simulation_run(self, x: Dict[str, float], directories: List[Dict[int, str]]) -> float:
         target, infected, fitness = self.evaluator.fitness(directories, self.run_configuration['norm_schedule'])
         return target
@@ -447,50 +355,65 @@ class EOOptimization(CodeExecution):
         pass
 
     @staticmethod
-    def print_data_point_ranges() -> None:
-        """
-        Quickly print the dates corresponding to the allowed range of data points
-        """
-        date = datetime.datetime(year=2020, month=3, day=1)
-        data_point = 0
-        while date < datetime.datetime(year=2020, month=7, day=1):
-            data_point += 1
-            date = datetime.datetime.strptime(date_from_data_point(data_point), "%Y-%m-%d")
-
-    def load_norm_application_counts(self) -> Dict[str, Dict[str, int]]:
-        filename = os.path.abspath(
-            os.path.join(
-                get_project_root(),
-                '.persistent',
-                "affected-agents-per-norm-{0}.csv".format("-".join(map(str, sorted(map(lambda x: int(self.counties[x]['fipscode']), self.counties)))))
-            )
-        )
-
-        if not os.path.exists(filename):
-            print("Using behavior model to find what number of agents is affected by what norms")
-            self.get_extra_java_commands = lambda: ['--count-affected-agents']
-            base_dir_func_backup = self.get_base_directory
-            self.get_base_directory = lambda: os.path.abspath(os.path.join(get_project_root(), '.persistent'))
-            java_command = self._java_command()
-            java_command = java_command[:java_command.index('2>&1')]
-            subprocess.run(java_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            self.get_extra_java_commands = lambda: []
-            self.get_base_directory = base_dir_func_backup
-
-        return filename, self.load_norm_application_counts_from_file(filename)
-
-    @staticmethod
     def load_norm_application_counts_from_file(filename):
         norm_counts = dict()
         with open(filename, 'r') as file_in:
             file_in.readline()  # Skip header
             for line in file_in:
                 data = line.split("\t")
-                norm_counts[data[0]] = {'affected_agents': int(data[1]), 'affected_duration': int(data[2])}
+                norm_counts[data[0]] = {'affected_agents': int(data[1]), 'affected_duration': int(data[2]), 'total_duration': int(data[2])}
 
         return norm_counts
 
+    def x_to_norm_schedule(self, x: FloatArray):
+        static, dynamic = self.digitize_x(x)
+        schedule = self.create_norm_schedule(static, dynamic)
+        return schedule
 
-def test_data_point_range():
-    EOOptimization.print_data_point_ranges()
-    print("Done")
+    def digitize_x(self, x: FloatArray) -> (IntArray, IntArray):
+        static, dynamic = split_X(x, len(self.static_penalty), self.n_weeks)
+        static_digitized = digitize_S(static, self.static_policy_nvals)
+        dynamic_digitized = digitize_D(dynamic)
+        return static_digitized, dynamic_digitized
+
+    def create_norm_schedule(self, static: IntArray, dynamic: IntArray):
+        """
+        Creates a norm schedule object from the digitized array of static parameters, and the digitized dynamic
+        parameter
+        Args:
+            static: Digitized array of static parameters
+            dynamic:   Digitized dynamic parameter
+
+        Returns:
+            Norm schedule representing the parameter configuration proposed by the Bayesian optimizer
+        """
+        norm_matrix: Dict[str, List[str]] = dict()
+        for norm, static_weeks in zip(sorted(self.policy['static']), static):
+            norm_matrix[norm] = [self.policy['static'][norm][week]['value'] for week in static_weeks]
+        norm_matrix['StayHomeSick'] = [self.policy['dynamic']['StayHomeSick'][week]['value'] for week in dynamic]
+
+        schedule = NormSchedule.from_protocol_v3(
+            norm_matrix,
+            self.simulation_end,
+            True
+        )
+
+        return schedule
+
+    def serialize_policy(self, x: FloatArray):
+        static, dynamic = self.digitize_x(x)
+        return self.serialize_int_arrays(static, dynamic)
+
+    def serialize_int_arrays(self, static_digitized: IntArray, dynamic_digitized: IntArray) -> str:
+        max_int_size = max([len(norm) for norm in self.policy['static'].values()])
+        bits = [utility.utility.int_list_to_int(norm, max_int_size) for norm in static_digitized]
+        bits.append(utility.utility.int_list_to_int(dynamic_digitized, max_int_size))
+        return "-".join(utility.utility.base_encode(b, 62) for b in bits)
+
+    def deserialize_int_arrays(self, x: str):
+        bits = [utility.utility.base_decode(_x, 62) for _x in x.split("-")]
+        max_int_size = max([len(norm) for norm in self.policy['static'].values()])
+        deserialized = [utility.utility.int_to_int_list(_x, max_int_size, self.n_weeks) for _x in bits]
+        return deserialized[:-1], deserialized[-1]
+
+

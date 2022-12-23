@@ -1,0 +1,3 @@
+[submodule "classes/ExecutiveOrderOptimizer/covid_policy_bayes_opt"]
+	path = classes/ExecutiveOrderOptimizer/covid_policy_bayes_opt
+	url = git@github.com:parantapa/covid-policy-bayes-opt.git

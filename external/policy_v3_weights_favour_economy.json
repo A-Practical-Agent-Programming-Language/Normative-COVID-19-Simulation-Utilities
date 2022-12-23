@@ -90,9 +90,9 @@
 			},
 			{
 				"value": true,
-				"penalty": 41573106800.0,
+				"penalty": 83146213600.0,
 				"threshold": 1.0,
-				"weight": 10.0,
+				"weight": 20.0,
 				"seconds_affected": 4157310680
 			}
 		],
@@ -143,16 +143,16 @@
 			},
 			{
 				"value": "7 DMV offices",
-				"penalty": 2028815240.0,
+				"penalty": 4057630480.0,
 				"threshold": 0.6666666666666666,
-				"weight": 10.0,
+				"weight": 20.0,
 				"seconds_affected": 202881524
 			},
 			{
 				"value": "7 DMV offices;NEB",
-				"penalty": 303658791900.0,
+				"penalty": 607317583800.0,
 				"threshold": 1.0,
-				"weight": 75.0,
+				"weight": 150.0,
 				"seconds_affected": 4048783892
 			}
 		],
@@ -189,9 +189,9 @@
 			},
 			{
 				"value": true,
-				"penalty": 19768506975.0,
+				"penalty": 39537013950.0,
 				"threshold": 1.0,
-				"weight": 25.0,
+				"weight": 50.0,
 				"seconds_affected": 790740279
 			}
 		],
@@ -205,16 +205,16 @@
 			},
 			{
 				"value": "50%",
-				"penalty": 47911655950.0,
+				"penalty": 95823311900.0,
 				"threshold": 0.6666666666666666,
-				"weight": 25.0,
+				"weight": 50.0,
 				"seconds_affected": 1916466238
 			},
 			{
 				"value": "10",
-				"penalty": 87169878250.0,
+				"penalty": 174339756500.0,
 				"threshold": 1.0,
-				"weight": 50.0,
+				"weight": 100.0,
 				"seconds_affected": 1743397565
 			}
 		],

@@ -1,8 +1,6 @@
 #!/bin/python3
-import random
 import sys
 
-import click
 from scipy.optimize import minimize
 
 from classes.Epicurve_RMSE import EpicurveRMSE
@@ -98,6 +96,20 @@ from utility.utility import *
     help="If true, this code will leave instructions for other compute nodes to run a specific configuration, instead"
     "of starting the calibration run itself, except if the run is the nth number with n = --number-of-runs",
 )
+@click.option(
+    "--n-slaves",
+    type=int,
+    default=0,
+    help="Specify the number of instantiated slaves",
+    required=False
+)
+@click.option(
+    "--slave-number",
+    type=int,
+    default=0,
+    help="Specify the unique number of this slave run. Must be between 0 and number of slaves specified to master",
+    required=False
+)
 @click.pass_context
 def start(ctx, **kwargs):
     """
@@ -159,6 +171,8 @@ def start(ctx, **kwargs):
             n_steps=kwargs["number_of_steps"],
             name=kwargs["name"],
             is_master=kwargs["is_master"],
+            n_slaves=kwargs["n_slaves"],
+            slave_number=kwargs["slave_number"]
         ),
     )
 
@@ -228,26 +242,6 @@ def behavior(ctx, mobility_index_file, tick_averages_file, sliding_window_size):
     help="Start the optimization process with a behavior and disease models",
 )
 @click.option(
-    "--alpha",
-    "-a",
-    type=float,
-    help="Specify the alpha value for the Bayesian optimization",
-    default=1e-2
-)
-@click.option(
-    "--init_points",
-    type=int,
-    default=20,
-    help="The number of random samples the Bayesian optimization should try before iteratively improving"
-)
-@click.option(
-    "--n_iter",
-    type=int,
-    default=160,
-    help="The number of iterations the Bayesian optimization should perform after the initial random exploration before"
-         "optimization ends"
-)
-@click.option(
     "--weight",
     "-w",
     type=float,
@@ -255,12 +249,43 @@ def behavior(ctx, mobility_index_file, tick_averages_file, sliding_window_size):
     default=1.0
 )
 @click.option(
-    "--norm-weights",
+    "--policy",
     type=click.Path(exists=True),
-    default=os.path.join(get_project_root(), "external", "norm_weights.csv"),
-    help="Specify the file containing the weights for each norm (used to weigh the impact of a norm vs. the number "
-         "of agents affected by that norm",
+    default=os.path.join(get_project_root(), "external", "policy_v3_default_weights.json"),
+    help="Specify the file containing the optimization policy, i.e., at least the list of static and dynamic norms,"
+         "with at least the penalty for each possible parameter of those norms",
     required=True
+)
+@click.option(
+    "--init_points",
+    type=int,
+    default=256,
+    help="The number of random samples the Bayesian optimization should try before iteratively improving"
+)
+@click.option(
+    "--explore-evals",
+    type=int,
+    default=32,
+    help="The number of evaluations the Bayesian optimization should explore maximally (according to value of Kappa)"
+)
+@click.option(
+    "--exploit-evals",
+    type=int,
+    default=32,
+    help="The number of evaluations the Bayesian optimization should exploit, after exploration evals have finished"
+)
+@click.option(
+    "--kappa_initial",
+    type=float,
+    default=2.576,
+    help="Kappa determines the exploration vs exploitation rate. The higher the kappa value, the more exploration"
+         "will occur."
+)
+@click.option(
+    "--kappa_scale",
+    type=float,
+    default=.95,
+    help="After the first --explore-evals, the value of kappa will be multiplied with this number after each simulation"
 )
 @click.option(
     "--mode-liberal",
@@ -290,52 +315,40 @@ def behavior(ctx, mobility_index_file, tick_averages_file, sliding_window_size):
     help="Specify where the history (json format) will be logged",
     required=False
 )
-@click.option(
-    "--n-slaves",
-    type=int,
-    default=0,
-    help="Specify the number of instantiated slaves",
-    required=False
-)
-@click.option(
-    "--slave-number",
-    type=int,
-    default=0,
-    help="Specify the unique number of this slave run. Must be between 0 and number of slaves specified to master",
-    required=False
-)
 @click.pass_context
 def optimization(
         ctx,
-        alpha,
-        init_points,
-        n_iter,
         weight,
-        norm_weights,
+        policy,
+        init_points,
+        explore_evals,
+        exploit_evals,
+        kappa_initial,
+        kappa_scale,
         mode_liberal,
         mode_conservative,
         fatigue,
         fatigue_start,
-        log_location,
-        n_slaves,
-        slave_number
+        log_location
 ):
     click.echo("Starting policy optimization")
-    EOOptimization(
-        alpha=alpha,
-        init_points=init_points,
-        n_iter=n_iter,
-        norm_weights=norm_weights,
+    optimizer = EOOptimization(
         societal_global_impact_weight=weight,
+        policy_specification=policy,
+        init_points=init_points,
+        explore_evals=explore_evals,
+        exploit_evals=exploit_evals,
+        kappa_initial=kappa_initial,
+        kappa_scale=kappa_scale,
         mode_liberal=mode_liberal,
         mode_conservative=mode_conservative,
         fatigue=fatigue,
         fatigue_start=fatigue_start,
         log_location=log_location,
-        n_slaves=n_slaves,
-        slave_number=slave_number,
         **ctx.obj['args']
     )
+
+    optimizer.calibrate()
 
 
 @start.command(
@@ -598,7 +611,6 @@ def run_norm_schedules(ctx, mode_liberal, mode_conservative, fatigue, fatigue_st
     args["fatigue_start"] = fatigue_start
     rip = RunInitialPolicies(norm_schedules, **args)
     rip.run_simulations()
-
 
 @start.command(
     name="sensitivity",

@@ -61,6 +61,8 @@ class CodeExecution(metaclass=PostInitCaller):
         epicurve_file="epicurve.csv",
         name=None,
         is_master=False,
+        n_slaves=0,
+        slave_number=None,
     ):
         self.county_configuration_file = county_configuration_file
         self.counties = counties
@@ -88,6 +90,9 @@ class CodeExecution(metaclass=PostInitCaller):
         self.is_master = is_master
 
         self.seed = seed
+
+        self.n_slaves = n_slaves
+        self.slave_number = slave_number
 
         # self.state_file = StateFile(self.counties).merge_from_config()
 
@@ -127,22 +132,23 @@ class CodeExecution(metaclass=PostInitCaller):
         dir_name = f"partitions_{self.run_configuration['fips']}"
         lid_partition = os.path.join(".persistent", dir_name, "lid" + fname)
         pid_partition = os.path.join(".persistent", dir_name, "pid" + fname)
-        locations = [
-            "pansim-partition",
-            "-l",
-            lid_partition,
-            "-p",
-            pid_partition,
-            "-n",
-            str(1),
-            "-c",
-            str(self.n_cpus),
-        ]
-        for conf in self.counties.values():
-            locations.extend(
-                conf["activities"] if not "locations" in conf else conf["locations"]
-            )
         if not os.path.exists(lid_partition) or not os.path.exists(pid_partition):
+            locations = [
+                "pansim-partition",
+                "-l",
+                lid_partition,
+                "-p",
+                pid_partition,
+                "-n",
+                str(1),
+                "-c",
+                str(self.n_cpus),
+            ]
+            for conf in self.counties.values():
+                locations.extend(
+                    conf["activities"] if "locations" not in conf else conf["locations"]
+                )
+
             os.makedirs(os.path.join(".persistent", dir_name), exist_ok=True)
             result = subprocess.run(locations, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             if result.returncode != 0:
@@ -395,18 +401,19 @@ class CodeExecution(metaclass=PostInitCaller):
             )
 
     def _create_java_command_file(self, suffix: str = None):
-        fname = os.path.abspath(
-            os.path.join(".persistent", ".tmp", f"start_behavior_model_{time.time()}")
+        identifier = "master" if self.is_master else f"slave_{self.slave_number}"
+        file_name = os.path.abspath(
+            os.path.join(".persistent", ".tmp", f"start_behavior_model_{identifier}_{time.time()}")
         )
         if suffix is not None:
-            fname += suffix
-        fname += ".sh"
-        with open(fname, "w") as command_out:
+            file_name += suffix
+        file_name += ".sh"
+        with open(file_name, "w") as command_out:
             command_out.write("#!/bin/bash\n\n")
             command_out.write(" ".join(self._java_command()))
-        state = os.stat(fname)
-        os.chmod(fname, state.st_mode | stat.S_IEXEC)
-        return fname
+        state = os.stat(file_name)
+        os.chmod(file_name, state.st_mode | stat.S_IEXEC)
+        return file_name
 
     def _get_agent_run_log_file(self):
         name = (
@@ -458,7 +465,7 @@ class CodeExecution(metaclass=PostInitCaller):
         )
 
     def get_extra_java_commands(self):
-        """Allows implementing sub-classes to specify additional parameters for the Java behavior model"""
+        """Allows implementing subclasses to specify additional parameters for the Java behavior model"""
         return []
 
     def create_static_data_object(self, base_path, now):

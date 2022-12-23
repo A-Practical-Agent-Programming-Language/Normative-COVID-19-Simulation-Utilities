@@ -1,4 +1,6 @@
 import os
+import random
+import string
 import subprocess
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -7,6 +9,7 @@ import click
 import toml
 
 from classes.EssentialLocations import EssentialDesignationExtractor
+from classes.ExecutiveOrderOptimizer.covid_policy_bayes_opt.bayes_policy_opt import IntArray
 
 
 def make_file_absolute(relative_to: str, file: str) -> (str, bool):
@@ -164,12 +167,67 @@ def make_fips_long(county_fips: int or str, state_fips: int or str = 51) -> int:
     return int(state_fips[: -1 * len(str(county_fips))] + str(county_fips))
 
 
+def int_list_to_int(lst: IntArray, largest_int: int) -> int:
+    return int("".join(["{0:0{1}b}".format(x, len(f"{largest_int:b}")) for x in lst]), 2)
+
+
+def int_to_int_list(number: hex, largest_int: int, array_size: int) -> IntArray:
+    byte_size = len(f"{largest_int:b}")
+    n = bin(number)[2:]
+    n = "0" * ((array_size * byte_size) - len(n)) + n
+    numbers = [n[a:a + byte_size] for a in range(0, len(n), byte_size)]
+    return [int(number, 2) for number in numbers]
+
+
+def test_int_list_serialization(n_repeats=100, max_size=10, list_range=(5, 20)):
+    for _ in range(n_repeats):
+        _lst = [random.randint(0, max_size) for _ in range(random.randint(*list_range))]
+        m = max(_lst)
+        number = int_list_to_int(_lst, m)
+        result = int_to_int_list(number, m, len(_lst))
+        assert result == _lst, f"Expected list reduced to {number} to be {_lst}, got {result}"
+
+
+alphabet = "".join(map(str, range(10))) + string.ascii_lowercase + string.ascii_uppercase
+alphabet_reverse = dict((c, i) for (i, c) in enumerate(alphabet))
+
+
+def base_encode(number, base=36):
+    if not isinstance(number, int):
+        raise TypeError(f'Number {number} must be an integer!')
+    if base > len(alphabet):
+        raise ValueError(f"The highest base supported is {len(alphabet)}, got {base}")
+
+    base_string = ''
+
+    while number:
+        number, i = divmod(number, base)
+        base_string = alphabet[i] + base_string
+
+    return base_string or alphabet[0]
+
+
+def base_decode(number: str, base=36):
+    n = 0
+    for c in number:
+        n = (n * base + alphabet_reverse[c])
+    return n
+
+
+def test_base_encoding():
+    print(len(alphabet), alphabet)
+    for base in range(2, len(alphabet) + 1):
+        print(f"Testing base {base}")
+        for number in range(100000):
+            encoded = base_encode(number, base)
+            decoded = base_decode(encoded, base)
+            assert number == decoded, f"Encoded number {number} in base {base} resulted in {encoded}, which decodes to {decoded}"
+
+
 def get_project_root(*path):
-    # root = Path(__file__).parent.parent
-    # if isinstance(path, str):
-    #     return os.path.join(root, path)
-    # elif isinstance(path, list):
-    #     return os.path.join(root, *path)
-    # else:
-    #     return root
     return os.path.join(Path(__file__).parent.parent, *path)
+
+
+if __name__ == "__main__":
+    test_int_list_serialization(100, 100, list_range=(1, 1000))
+    test_base_encoding()
