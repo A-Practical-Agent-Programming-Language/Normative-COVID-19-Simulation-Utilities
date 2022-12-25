@@ -347,6 +347,7 @@ def optimization(
         log_location=log_location,
         **ctx.obj['args']
     )
+    print("Optimization process initialized.")
 
 @start.command(
     name="disease",

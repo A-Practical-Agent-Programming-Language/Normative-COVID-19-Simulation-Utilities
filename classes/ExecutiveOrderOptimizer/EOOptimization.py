@@ -86,6 +86,7 @@ class EOOptimization(CodeExecution):
         if log_location is not None:
             self.json_log = log_location
 
+        print("Things should be happening now")
         if self.is_master and (self.n_slaves + 1) % self.n_runs != 0:
             print((self.n_slaves + 1) % self.n_runs)
             raise(Exception(f"The specified number of {self.n_runs} cannot cleanly be distributed across the "
