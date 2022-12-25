@@ -92,9 +92,10 @@ class EOOptimization(CodeExecution):
                             f"{self.n_slaves} + 1 master process. Pick another number or create a pull request "
                             f"to deal with this case :')"))
         elif self.is_master:
+            print("Starting optimization master process")
             self.calibrate()
         else:
-            print(f"Starting as slave {self.slave_number}")
+            print(f"Starting optimization slave process {self.slave_number}")
             self.iterate_as_slave()
 
     def create_static_data_object(self, base_path, now):
