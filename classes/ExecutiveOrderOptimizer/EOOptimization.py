@@ -92,10 +92,10 @@ class EOOptimization(CodeExecution):
             raise(Exception(f"The specified number of {self.n_runs} cannot cleanly be distributed across the "
                             f"{self.n_slaves} + 1 master process. Pick another number or create a pull request "
                             f"to deal with this case :')"))
-        elif self.is_master:
-            print("Starting optimization master process")
-            self.calibrate()
-        else:
+
+        print("Execute Order Optimization Initialisation complete")
+
+        if not self.is_master:
             print(f"Starting optimization slave process {self.slave_number}")
             self.iterate_as_slave()
 

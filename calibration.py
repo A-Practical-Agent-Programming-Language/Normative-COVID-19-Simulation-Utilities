@@ -332,7 +332,7 @@ def optimization(
         log_location
 ):
     click.echo("Starting policy optimization")
-    EOOptimization(
+    optimizer = EOOptimization(
         societal_global_impact_weight=weight,
         policy_specification=policy,
         init_points=init_points,
@@ -348,6 +348,8 @@ def optimization(
         **ctx.obj['args']
     )
     print("Optimization process initialized.")
+    optimizer.calibrate()
+
 
 @start.command(
     name="disease",
