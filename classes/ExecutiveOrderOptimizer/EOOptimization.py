@@ -1,6 +1,6 @@
 import json
-import json
 import os.path
+import re
 import time
 from datetime import datetime
 from typing import List, Dict
@@ -78,7 +78,6 @@ class EOOptimization(CodeExecution):
         simulation_end: datetime = utility.utility.get_expected_end_date(self.county_configuration_file, self.n_steps)
         self.simulation_end = simulation_end.strftime(DATE_FORMAT)
 
-
         self.json_log = os.path.join(
             get_project_root(),
             "output",
@@ -92,8 +91,9 @@ class EOOptimization(CodeExecution):
             raise(Exception(f"The specified number of {self.n_runs} cannot cleanly be distributed across the "
                             f"{self.n_slaves} + 1 master process. Pick another number or create a pull request "
                             f"to deal with this case :')"))
-
-        if not self.is_master:
+        elif self.is_master:
+            self.calibrate()
+        else:
             print(f"Starting as slave {self.slave_number}")
             self.iterate_as_slave()
 
@@ -136,7 +136,6 @@ class EOOptimization(CodeExecution):
         return files
 
     def calibrate(self, **x):
-        print(self.static_penalty)
         minimizer = BayesOptMinimizer(
             static_penalty=self.static_penalty,
             dynamic_penalty=self.dynamic_penalty,
@@ -153,12 +152,20 @@ class EOOptimization(CodeExecution):
 
         # TODO, if exists, load state dict
 
-        self.start_optimization(minimizer)
+        processed = self.load_existing_runs(minimizer)
 
-    def start_optimization(self, minimizer: BayesOptMinimizer):
+        self.start_optimization(minimizer, processed)
+
+    def start_optimization(self, minimizer: BayesOptMinimizer, already_processed: int = 0):
         finished = False
 
         initial_xs: List[FloatArray] = minimizer.get_initial_xs()
+
+        remaining_to_process = len(initial_xs) - already_processed
+        print(f"Received {len(initial_xs)} initial xs, but already processed {already_processed}. Performing remaining first {remaining_to_process} from initial xs")
+        initial_xs = initial_xs[:remaining_to_process]
+        print(len(initial_xs))
+
         for x_probes in [initial_xs[i:i+self.n_slaves+1] for i in range(0, len(initial_xs), self.n_slaves+1)]:
             self.handle_simultaneous_probes(minimizer, x_probes)
 
@@ -257,6 +264,9 @@ class EOOptimization(CodeExecution):
         with open(self.county_configuration_file, 'w') as new_conf_out:
             toml.dump(toml_config, new_conf_out)
 
+        with open(self.get_base_directory(run, "x-probe.txt"), 'w') as xprobe_out:
+            xprobe_out.write(f"{x}")
+
         self.run_configuration['norm_schedule'] = self.x_to_norm_schedule(x)
         self.run_configuration['norm_schedule'].write_to_file(self.run_configuration['policy_schedule_name'])
 
@@ -273,7 +283,7 @@ class EOOptimization(CodeExecution):
     def all_runs_finished(self, optimizer: BayesOptMinimizer, x_probes: List[FloatArray]) -> (bool, List[str]):
         not_finished = list()
         for i in range(self.n_slaves):
-            if not self.check_instructions_finished(x_probes[i], i):
+            if i <= len(x_probes) and not self.check_instructions_finished(x_probes[i], i):
                 not_finished.append(str(i))
 
         if len(not_finished):
@@ -308,6 +318,23 @@ class EOOptimization(CodeExecution):
         with open(o, 'a+') as progress_out:
             for line in lines:
                 progress_out.write(line + "\n")
+
+    def load_existing_runs(self, minimizer: BayesOptMinimizer):
+        matcher = re.compile(r'^-?[\d.]+, (\d+), [\d.]+, [\w-]+ \[([\d. \n]+)]$', re.MULTILINE)
+        o = os.path.join(*self.rundirectory_template[:-1], "optimization.progress.log")
+        processed = 0
+        if os.path.exists(o):
+            with open(o, 'r') as progress_in:
+                content = progress_in.read()
+                results = matcher.findall(content)
+                for (infected, x_probe) in results:
+                    infected = int(infected)
+                    x_probe = np.array([float(x) for x in re.split(r'\s+', x_probe) if x != ''])
+                    minimizer.probed_X.append(x_probe)
+                    minimizer.set_iota(x_probe, infected)
+                    processed += 1
+
+        return processed
 
     def leave_instructions(self, slave: int, x_probe: FloatArray, run: int):
         os.makedirs(self.instruction_dir, exist_ok=True)

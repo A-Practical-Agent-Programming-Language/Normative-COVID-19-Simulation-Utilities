@@ -56,13 +56,13 @@ class EOEvaluator(object):
     def fitness(self, directories: List[Dict[int, str]], norm_schedule: NormSchedule) -> (float, int, float):
         fitness = 0
         for norm in [x for x, y in self.norm_counts.items() if x != "SmallGroups[250,PP]" and (y["affected_duration"] > 0)]:
-            active_duration = norm_schedule.get_active_duration(norm)
+            active_duration = norm_schedule.get_active_duration(norm) / 7
             affected_agents = self.find_number_of_agents_affected_by_norm(norm, directories)
             norm_weight = self.norm_weights[norm]
             fitness += active_duration * norm_weight * affected_agents
         infected, n_agents = self.count_infected_agents(directories)
         final_fitness = self.societal_global_impact_weight * fitness
-        return -1 * (infected + final_fitness), infected, fitness
+        return (infected + final_fitness), infected, fitness
 
     def find_number_of_agents_affected_by_norm(self, norm_name: str, directories: List[Dict[int, str]]) -> int:
         if "StayHomeSick" in norm_name:
