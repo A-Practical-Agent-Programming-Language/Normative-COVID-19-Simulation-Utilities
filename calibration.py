@@ -143,8 +143,7 @@ def start(ctx, **kwargs):
     county_configuration = load_toml_configuration(kwargs["county_configuration"])
     county_configuration["simulation"]["seed"] = seed
     conf_file_tmp = os.path.join(".persistent", ".tmp", "java_model_config.toml")
-    if not os.path.exists(os.path.dirname(conf_file_tmp)):
-        os.makedirs(os.path.dirname(conf_file_tmp))
+    os.makedirs(os.path.dirname(conf_file_tmp), exist_ok=True)
     with open(conf_file_tmp, "w") as fout:
         toml.dump(county_configuration, fout)
 
