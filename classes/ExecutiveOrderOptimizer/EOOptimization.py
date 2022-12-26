@@ -143,7 +143,7 @@ class EOOptimization(CodeExecution):
     def calibrate(self, **x):
         if os.path.exists(self.pickle_file):
             print("Pickle file exists")
-            with open(self.pickle_file, 'r') as state_out:
+            with open(self.pickle_file, 'rb') as state_out:
                 state = pickle.load(state_out)
                 minimizer = BayesOptMinimizer.from_state_dict(state)
         else:
@@ -182,6 +182,7 @@ class EOOptimization(CodeExecution):
 
         if len(minimizer.probed_X) == 0:
             initial_xs = minimizer.get_initial_xs()
+            self.persist_minimizer_state(minimizer)
         else:
             initial_xs = minimizer.probed_X[len(minimizer.eval_X):]
 
@@ -316,10 +317,13 @@ class EOOptimization(CodeExecution):
             if os.path.exists(os.path.join(self.instruction_dir, f"run-{i}.done")):
                 os.remove(os.path.join(self.instruction_dir, f"run-{i}.done"))
 
-        with open(self.pickle_file, 'w+') as state_out:
-            pickle.dump(optimizer.state_dict(), state_out)
+        self.persist_minimizer_state(optimizer)
 
         return True, []
+
+    def persist_minimizer_state(self, minimizer: BayesOptMinimizer):
+        with open(self.pickle_file, 'wb+') as state_out:
+            pickle.dump(minimizer.state_dict(), state_out)
 
     def deal_with_run(self, optimizer: BayesOptMinimizer, x_probe: FloatArray):
         params = self.serialize_policy(x_probe)
