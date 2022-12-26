@@ -1,5 +1,6 @@
 import json
 import os.path
+import pickle
 import re
 import time
 from datetime import datetime
@@ -86,6 +87,8 @@ class EOOptimization(CodeExecution):
         if log_location is not None:
             self.json_log = log_location
 
+        self.pickle_file = os.path.join(*self.rundirectory_template[:-1], "optimization.state.ppl")
+
         print("Things should be happening now")
         if self.is_master and (self.n_slaves + 1) % self.n_runs != 0:
             print((self.n_slaves + 1) % self.n_runs)
@@ -138,36 +141,51 @@ class EOOptimization(CodeExecution):
         return files
 
     def calibrate(self, **x):
-        minimizer = BayesOptMinimizer(
-            static_penalty=self.static_penalty,
-            dynamic_penalty=self.dynamic_penalty,
-            M=len(self.static_penalty),
-            K=self.n_weeks,
-            omega=self.societal_global_impact_weight,
-            init_evals=self.initial_evaluations,
-            explore_evals=self.explore_evals,
-            exploit_evals=self.exploit_evals,
-            parallel_evals=self.n_slaves + 1,
-            kappa_initial=self.kappa_initial,
-            kappa_scale=self.kappa_scale,
-        )
+        if os.path.exists(self.pickle_file):
+            print("Pickle file exists")
+            with open(self.pickle_file, 'r') as state_out:
+                state = pickle.load(state_out)
+                minimizer = BayesOptMinimizer.from_state_dict(state)
+        else:
+            minimizer = BayesOptMinimizer(
+                static_penalty=self.static_penalty,
+                dynamic_penalty=self.dynamic_penalty,
+                M=len(self.static_penalty),
+                K=self.n_weeks,
+                omega=self.societal_global_impact_weight,
+                init_evals=self.initial_evaluations,
+                explore_evals=self.explore_evals,
+                exploit_evals=self.exploit_evals,
+                parallel_evals=self.n_slaves + 1,
+                kappa_initial=self.kappa_initial,
+                kappa_scale=self.kappa_scale,
+            )
 
-        # TODO, if exists, load state dict
+            initial_xs: List[FloatArray] = minimizer.get_initial_xs()
+            minimizer.probed_X = []
+            x_probed, x_infected = self.load_existing_runs()
+            for (x_probe, infected) in zip(x_probed, x_infected):
+                minimizer.probed_X.append(x_probe)
+                minimizer.set_iota(x_probe, infected)
 
-        processed = self.load_existing_runs(minimizer)
+            initial_xs = initial_xs[:len(initial_xs) - len(x_probed)]
+            minimizer.probed_X.extend(initial_xs)
 
-        self.start_optimization(minimizer, processed)
+            print(
+                f"Results for {len(x_probed)} initial simulations already present, requiring {self.initial_evaluations + self.n_slaves + 1}")
+            print(f"Running remaining {len(initial_xs)} simulations now")
 
-    def start_optimization(self, minimizer: BayesOptMinimizer, already_processed: int = 0):
+        self.start_optimization(minimizer)
+
+    def start_optimization(self, minimizer: BayesOptMinimizer):
         finished = False
 
-        initial_xs: List[FloatArray] = minimizer.get_initial_xs()
+        if len(minimizer.probed_X) == 0:
+            initial_xs = minimizer.get_initial_xs()
+        else:
+            initial_xs = minimizer.probed_X[len(minimizer.eval_X):]
 
-        remaining_to_process = len(initial_xs) - already_processed
-        print(f"Received {len(initial_xs)} initial xs, but already processed {already_processed}. Performing remaining first {remaining_to_process} from initial xs")
-        initial_xs = initial_xs[:remaining_to_process]
-        print(len(initial_xs))
-
+        # Do not simulate the already evaluated runs
         for x_probes in [initial_xs[i:i+self.n_slaves+1] for i in range(0, len(initial_xs), self.n_slaves+1)]:
             self.handle_simultaneous_probes(minimizer, x_probes)
 
@@ -298,6 +316,9 @@ class EOOptimization(CodeExecution):
             if os.path.exists(os.path.join(self.instruction_dir, f"run-{i}.done")):
                 os.remove(os.path.join(self.instruction_dir, f"run-{i}.done"))
 
+        with open(self.pickle_file, 'w+') as state_out:
+            pickle.dump(optimizer.state_dict(), state_out)
+
         return True, []
 
     def deal_with_run(self, optimizer: BayesOptMinimizer, x_probe: FloatArray):
@@ -321,10 +342,10 @@ class EOOptimization(CodeExecution):
             for line in lines:
                 progress_out.write(line + "\n")
 
-    def load_existing_runs(self, minimizer: BayesOptMinimizer):
+    def load_existing_runs(self) -> (List[list], List[int]):
         matcher = re.compile(r'^-?[\d.]+, (\d+), [\d.]+, [\w-]+ \[([\d. \n]+)]$', re.MULTILINE)
         o = os.path.join(*self.rundirectory_template[:-1], "optimization.progress.log")
-        processed = 0
+        x_probes, infecteds = list(), list()
         if os.path.exists(o):
             with open(o, 'r') as progress_in:
                 content = progress_in.read()
@@ -332,11 +353,10 @@ class EOOptimization(CodeExecution):
                 for (infected, x_probe) in results:
                     infected = int(infected)
                     x_probe = np.array([float(x) for x in re.split(r'\s+', x_probe) if x != ''])
-                    minimizer.probed_X.append(x_probe)
-                    minimizer.set_iota(x_probe, infected)
-                    processed += 1
+                    x_probes.append(x_probe)
+                    infecteds.append(infected)
 
-        return processed
+        return x_probes, infecteds
 
     def leave_instructions(self, slave: int, x_probe: FloatArray, run: int):
         os.makedirs(self.instruction_dir, exist_ok=True)
