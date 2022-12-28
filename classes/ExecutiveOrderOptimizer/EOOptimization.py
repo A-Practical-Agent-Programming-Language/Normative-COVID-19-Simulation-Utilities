@@ -303,8 +303,8 @@ class EOOptimization(CodeExecution):
 
     def all_runs_finished(self, optimizer: BayesOptMinimizer, x_probes: List[FloatArray]) -> (bool, List[str]):
         not_finished = list()
-        for i in range(self.n_slaves):
-            if i <= len(x_probes) and not self.check_instructions_finished(x_probes[i], i):
+        for i, x in zip(x_probes, range(self.n_slaves)):
+            if self.check_instructions_finished(x, i):
                 not_finished.append(str(i))
 
         if len(not_finished):
