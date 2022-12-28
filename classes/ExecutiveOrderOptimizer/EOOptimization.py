@@ -303,8 +303,8 @@ class EOOptimization(CodeExecution):
 
     def all_runs_finished(self, optimizer: BayesOptMinimizer, x_probes: List[FloatArray]) -> (bool, List[str]):
         not_finished = list()
-        for i, x in zip(x_probes, range(self.n_slaves)):
-            if self.check_instructions_finished(x, i):
+        for x, i in zip(x_probes, range(self.n_slaves)):
+            if not self.check_instructions_finished(x, i):
                 not_finished.append(str(i))
 
         if len(not_finished):
@@ -326,10 +326,9 @@ class EOOptimization(CodeExecution):
             pickle.dump(minimizer.state_dict(), state_out)
 
     def deal_with_run(self, optimizer: BayesOptMinimizer, x_probe: FloatArray):
-        params = self.serialize_policy(x_probe)
         run_directories = dict()
         for i in range(self.n_runs):
-            run_directories[i] = os.path.join(*list(map(lambda x: x.format(run=i, x=x_probe, serialized_x=params), self.rundirectory_template)))
+            _, run_directories[i] = self.simulation_exists(x_probe, i)
 
         target, infected, fitness = self.evaluator.fitness(
             [run_directories],
