@@ -74,7 +74,7 @@ class EOOptimization(CodeExecution):
         self.static_penalty, self.dynamic_penalty = self.get_penalty()
         self.static_policy_nvals = np.array([len(v) for v in self.static_penalty])
         self.n_weeks = self.get_n_weeks()
-        self.evaluator = EOEvaluator(societal_global_impact_weight, policy_specification=self.policy)
+        self.evaluator = EOEvaluator(societal_global_impact_weight, dry_run=self.dry_run, policy_specification=self.policy)
 
         simulation_end: datetime = utility.utility.get_expected_end_date(self.county_configuration_file, self.n_steps)
         self.simulation_end = simulation_end.strftime(DATE_FORMAT)
@@ -186,6 +186,8 @@ class EOOptimization(CodeExecution):
         else:
             initial_xs = minimizer.probed_X[len(minimizer.eval_X):]
 
+        print(f"Starting optimization with {len(initial_xs)} remaining initial runs")
+
         # Do not simulate the already evaluated runs
         for x_probes in [initial_xs[i:i+self.n_slaves+1] for i in range(0, len(initial_xs), self.n_slaves+1)]:
             self.handle_simultaneous_probes(minimizer, x_probes)
@@ -236,7 +238,7 @@ class EOOptimization(CodeExecution):
         print(f"Simulating {self.serialize_policy(x_probes[0])} on master process")
         self.do_optimization_simulation(x_probes[0], 0)
 
-        while not self.all_runs_finished(optimizer, x_probes)[0]:
+        while not self.all_runs_finished(optimizer, x_probes[1:])[0]:
             print("Master is waiting for slaves to finish. Checking again in 30 seconds")
             time.sleep(30)
 
@@ -308,6 +310,7 @@ class EOOptimization(CodeExecution):
                 not_finished.append(str(i))
 
         if len(not_finished):
+            print(f"Waiting for {not_finished}")
             return False, not_finished
 
         for x_probe in x_probes:

@@ -10,7 +10,8 @@ from classes.ExecutiveOrderOptimizer.NormSchedule import NormSchedule
 
 class EOEvaluator(object):
 
-    def __init__(self, societal_global_impact_weight: float, **kwargs):
+    def __init__(self, societal_global_impact_weight: float, dry_run=False, **kwargs):
+        self.dry_run = dry_run
         self.societal_global_impact_weight = societal_global_impact_weight
         if 'norm_weights' in kwargs and 'norm_counts' in kwargs:
             self.__init_from_weights_and_counts(**kwargs)
@@ -60,7 +61,7 @@ class EOEvaluator(object):
             affected_agents = self.find_number_of_agents_affected_by_norm(norm, directories)
             norm_weight = self.norm_weights[norm]
             fitness += active_duration * norm_weight * affected_agents
-        infected, n_agents = self.count_infected_agents(directories)
+        infected, n_agents = self.count_infected_agents(directories, self.dry_run)
         final_fitness = self.societal_global_impact_weight * fitness
         return (infected + final_fitness), infected, fitness
 
@@ -73,23 +74,27 @@ class EOEvaluator(object):
     def find_number_of_agents_affected_by_stayhome_if_sick(self, directories: List[Dict[int, str]]) -> int:
         # TODO, just report number of symptomatically ill people
         # TODO How to find people who were symptomatic?
-        infected, n_agents = self.count_infected_agents(directories)
+        infected, n_agents = self.count_infected_agents(directories, self.dry_run)
         return round(self.norm_counts["StayHomeSick"]["affected_duration"] * 0.6 * (infected / n_agents))
 
     @staticmethod
-    def count_infected_agents(directories: List[Dict[int, str]]) -> (int, int):
+    def count_infected_agents(directories: List[Dict[int, str]], dry_run: bool = False) -> (int, int):
         total_infected_agents = defaultdict(int)
         total_population_size = defaultdict(int)
         for node in directories:
             for run, directory in node.items():
-                with open(os.path.join(directory, 'epicurve.pansim.csv'), 'r') as file_in:
-                    headers = file_in.readline()[:-1].split(",")
-                    values = file_in.readlines()[-1][:-1].split(",")
-                    infected = sum(map(lambda x: int(values[headers.index(x)]), [
-                        "expo",
-                        "isymp", "iasymp", "recov"]))
+                with open(os.path.join(directory, f'epicurve.{"sim2apl" if dry_run else "pansim"}.csv'), 'r') as file_in:
+                    headers = file_in.readline()[:-1].split(";" if dry_run else ",")
+                    values = file_in.readlines()[-1][:-1].split(";" if dry_run else ",")
+                    if dry_run:
+                        relevant_headers = ["EXPOSED", "INFECTED_SYMPTOMATIC", "INFECTED_ASYMPTOMATIC", "RECOVERED"]
+                        other_pop_headers = ["NOT_SET", "SUSCEPTIBLE"]
+                    else:
+                        relevant_headers = ["expo", "isymp", "iasymp", "recov"]
+                        other_pop_headers = ["succ"]
+                    infected = sum(map(lambda x: int(values[headers.index(x)]), relevant_headers))
                     total_infected_agents[run] += infected
-                    total_population_size[run] += sum(map(int, values))
+                    total_population_size[run] += sum(map(lambda x: int(values[headers.index(x)]), relevant_headers + other_pop_headers))
         return (
             round(np.average(list(total_infected_agents.values()))),
             round(np.average(list(total_population_size.values())))

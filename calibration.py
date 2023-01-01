@@ -110,6 +110,13 @@ from utility.utility import *
     help="Specify the unique number of this slave run. Must be between 0 and number of slaves specified to master",
     required=False
 )
+@click.option(
+    "--dry-run",
+    type=bool,
+    default=False,
+    help="A dry-run simulation does not start the PanSim process and can be helpful for quick verification of the process",
+    required=False
+)
 @click.pass_context
 def start(ctx, **kwargs):
     """
@@ -142,6 +149,8 @@ def start(ctx, **kwargs):
     seed = random.randrange(sys.maxsize)
     county_configuration = load_toml_configuration(kwargs["county_configuration"])
     county_configuration["simulation"]["seed"] = seed
+    if "number_of_steps" in kwargs and "dry_run" in kwargs and kwargs["dry_run"]:
+        county_configuration["simulation"]["iterations"] = kwargs["number_of_steps"]
     conf_file_tmp = os.path.join(".persistent", ".tmp", "java_model_config.toml")
     os.makedirs(os.path.dirname(conf_file_tmp), exist_ok=True)
     with open(conf_file_tmp, "w") as fout:
@@ -171,7 +180,8 @@ def start(ctx, **kwargs):
             name=kwargs["name"],
             is_master=kwargs["is_master"],
             n_slaves=kwargs["n_slaves"],
-            slave_number=kwargs["slave_number"]
+            slave_number=kwargs["slave_number"],
+            dry_run=kwargs["dry_run"]
         ),
     )
 

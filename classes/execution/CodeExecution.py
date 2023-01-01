@@ -63,6 +63,7 @@ class CodeExecution(metaclass=PostInitCaller):
         is_master=False,
         n_slaves=0,
         slave_number=None,
+        dry_run = False,
     ):
         self.county_configuration_file = county_configuration_file
         self.counties = counties
@@ -93,6 +94,8 @@ class CodeExecution(metaclass=PostInitCaller):
 
         self.n_slaves = n_slaves
         self.slave_number = slave_number
+
+        self.dry_run = dry_run
 
         # self.state_file = StateFile(self.counties).merge_from_config()
 
@@ -374,18 +377,20 @@ class CodeExecution(metaclass=PostInitCaller):
         Closes the Java process if something goes wrong
         """
         java_process: subprocess.Popen = None
-        # java_process = self.__start_java_background_process()  # TODO uncomment to run with old version of PanSim
-        pansim_process = self._start_pansim_process()
-        if pansim_process.returncode != 0:
-            print(
-                f"Failed to complete simulation. Pansim status {pansim_process.returncode}"
-            )
-            os.remove(java_command_file)
-            if java_process is not None:
-                java_process.kill()
-            exit(pansim_process.returncode)
+        if self.dry_run:
+            self.__start_java_background_process(java_command_file)
+        else:
+            pansim_process = self._start_pansim_process()
+            if pansim_process.returncode != 0:
+                print(
+                    f"Failed to complete simulation. Pansim status {pansim_process.returncode}"
+                )
+                os.remove(java_command_file)
+                if java_process is not None:
+                    java_process.kill()
+                exit(pansim_process.returncode)
 
-    def __start_java_background_process(self) -> subprocess.Popen:
+    def __start_java_background_process(self, java_command_file) -> subprocess.Popen:
         """
         Used for running old version of PanSim
         Returns: Sub process with behavior model
@@ -395,10 +400,7 @@ class CodeExecution(metaclass=PostInitCaller):
             "Starting behavior model background process and writing output to "
             + agentrun_log
         )
-        with open(agentrun_log, "a") as logfile:
-            return subprocess.Popen(
-                self._java_command(), stdout=logfile, stderr=logfile
-            )
+        subprocess.run([java_command_file])
 
     def _create_java_command_file(self, suffix: str = None):
         identifier = "master" if self.is_master else f"slave_{self.slave_number}"
@@ -456,10 +458,10 @@ class CodeExecution(metaclass=PostInitCaller):
                 str(int(self.fatigue_start)),
                 "-t",
                 str(self.java_threads),
-                "-c",
                 "--output",
                 self.get_base_directory(),
             ]
+            + (["-c"] if not self.dry_run else [])
             + self.get_extra_java_commands()
             + ["2>&1", "|", "tee", self._get_agent_run_log_file()]
         )
