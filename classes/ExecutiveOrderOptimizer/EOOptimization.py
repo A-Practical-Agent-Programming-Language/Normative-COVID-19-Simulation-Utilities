@@ -299,18 +299,18 @@ class EOOptimization(CodeExecution):
         exists = os.path.exists(path)
         return exists, path
 
-    def check_instructions_finished(self, x_probe: FloatArray, slave: int) -> bool:
-        base, progress, done = [os.path.exists(os.path.join(self.instruction_dir, f"run-{slave}{t}")) for t in ["", ".progress", ".done"]]
-        return done or (not base and not progress and self.simulation_exists(x_probe, slave)[0])
+    def check_instructions_finished(self, x_probe: FloatArray, run: int) -> bool:
+        base, progress, done = [os.path.exists(os.path.join(self.instruction_dir, f"run-{run}{t}")) for t in ["", ".progress", ".done"]]
+        return done or (not base and not progress and self.simulation_exists(x_probe, run)[0])
 
     def all_runs_finished(self, optimizer: BayesOptMinimizer, x_probes: List[FloatArray]) -> (bool, List[str]):
         not_finished = list()
-        for x, i in zip(x_probes, range(self.n_slaves)):
-            if not self.check_instructions_finished(x, i):
-                not_finished.append(str(i))
+        for x_probe, i in zip(x_probes, range(self.n_slaves)):
+            if not self.check_instructions_finished(x_probe, run=0):
+                not_finished.append(i)
 
         if len(not_finished):
-            print(f"Waiting for {not_finished}")
+            print(f"Waiting for following slave numbers: {not_finished}")
             return False, not_finished
 
         for x_probe in x_probes:
