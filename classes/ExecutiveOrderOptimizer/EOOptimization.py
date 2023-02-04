@@ -302,7 +302,7 @@ class EOOptimization(CodeExecution):
 
     def check_instructions_finished(self, x_probe: FloatArray, run: int) -> bool:
         base, progress, done = [os.path.exists(os.path.join(self.instruction_dir, f"run-{run}{t}")) for t in ["", ".progress", ".done"]]
-        return done or (not base and not progress and self.simulation_exists(x_probe, run)[0])
+        return (done or (not base and not progress)) and self.simulation_exists(x_probe, run)[0]
 
     def all_runs_finished(self, optimizer: BayesOptMinimizer, x_probes: List[FloatArray]) -> (bool, List[str]):
         not_finished = list()
