@@ -63,7 +63,7 @@ class CodeExecution(metaclass=PostInitCaller):
         is_master=False,
         n_slaves=0,
         slave_number=None,
-        dry_run = False,
+        dry_run=False,
     ):
         self.county_configuration_file = county_configuration_file
         self.counties = counties

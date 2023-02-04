@@ -74,6 +74,7 @@ class EOOptimization(CodeExecution):
         self.static_penalty, self.dynamic_penalty = self.get_penalty()
         self.static_policy_nvals = np.array([len(v) for v in self.static_penalty])
         self.n_weeks = self.get_n_weeks()
+        self.target_file = f'epicurve.{"sim2apl" if self.dry_run else "pansim"}.csv'
         self.evaluator = EOEvaluator(societal_global_impact_weight, dry_run=self.dry_run, policy_specification=self.policy)
 
         simulation_end: datetime = utility.utility.get_expected_end_date(self.county_configuration_file, self.n_steps)
@@ -295,7 +296,7 @@ class EOOptimization(CodeExecution):
 
     def simulation_exists(self, x_probe: FloatArray, run: int) -> (bool, os.PathLike):
         params = self.serialize_policy(x_probe)
-        path = os.path.join(*list(map(lambda t: t.format(run=run, serialized_x=params), self.rundirectory_template)))
+        path = os.path.join(*list(map(lambda t: t.format(run=run, serialized_x=params), self.rundirectory_template)) + [self.target_file])
         exists = os.path.exists(path)
         return exists, path
 
