@@ -296,8 +296,8 @@ class EOOptimization(CodeExecution):
 
     def simulation_exists(self, x_probe: FloatArray, run: int) -> (bool, os.PathLike):
         params = self.serialize_policy(x_probe)
-        path = os.path.join(*list(map(lambda t: t.format(run=run, serialized_x=params), self.rundirectory_template)) + [self.target_file])
-        exists = os.path.exists(path)
+        path = os.path.join(*list(map(lambda t: t.format(run=run, serialized_x=params), self.rundirectory_template)))
+        exists = os.path.exists(os.path.join(path, self.target_file))
         return exists, path
 
     def check_instructions_finished(self, x_probe: FloatArray, run: int) -> bool:
