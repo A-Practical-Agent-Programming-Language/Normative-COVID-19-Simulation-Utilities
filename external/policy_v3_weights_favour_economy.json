@@ -253,7 +253,7 @@
 			},
 			{
 				"value": true,
-				"penalty": 61067390370.0,
+				"penalty": 512805.0583196876,
 				"threshold": 1.0,
 				"weight": 5.0,
 				"seconds_affected": 20355796790

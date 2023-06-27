@@ -1,0 +1,33 @@
+diff --git a/bayes_policy_opt.py b/bayes_policy_opt.py
+index ba0cbe5..dfa4fae 100644
+--- a/bayes_policy_opt.py
++++ b/bayes_policy_opt.py
+@@ -92,7 +92,7 @@ def SD_penalty(SD: IntArray, static_penalty: list[FloatArray]) -> float:
+ 
+ def DD_penalty(DD: IntArray, dynamic_penalty: float) -> float:
+     # DD.shape
+-    p = DD.mean() * dynamic_penalty
++    p = DD.sum() * dynamic_penalty
+     return p
+ 
+ 
+@@ -149,6 +149,19 @@ def pred_penalty(
+     pred_iota_mean = pred_iota_mean.squeeze().item()
+     pred_iota_std = pred_iota_std.squeeze().item()
+ 
++    return score_penalty_from_iota(X, pred_iota_mean, pred_iota_std, static_policy_nvals, M, K, static_penalty, dynamic_penalty, omega)
++
++def score_penalty_from_iota(
++    X: FloatArray,
++    pred_iota_mean: float,
++    pred_iota_std: float,
++    static_policy_nvals: IntArray,
++    M: int,
++    K: int,
++    static_penalty: list[FloatArray],
++    dynamic_penalty: float,
++    omega: float,
++) -> tuple[float, float]:
+     S, D = split_X(X, M, K)
+     SD = digitize_S(S, static_policy_nvals)
+     DD = digitize_D(D)

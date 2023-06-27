@@ -14,8 +14,7 @@ from classes.ExecutiveOrderOptimizer.EOEvaluator import EOEvaluator
 from classes.ExecutiveOrderOptimizer.NormSchedule import NormSchedule
 from classes.ExecutiveOrderOptimizer.NormService import DATE_FORMAT
 from classes.ExecutiveOrderOptimizer.covid_policy_bayes_opt.bayes_policy_opt import BayesOptMinimizer, FloatArray, \
-    split_X, digitize_D, IntArray, \
-    digitize_S, WaitingForFinalEvals, MinimizationComplete
+    WaitingForFinalEvals, MinimizationComplete, split_X, digitize_S, digitize_D, IntArray
 from classes.execution.CodeExecution import CodeExecution
 from utility.utility import get_project_root
 
@@ -64,18 +63,20 @@ class EOOptimization(CodeExecution):
 
         self.policy_specification_file = policy_specification
         policy_specification_file_name = os.path.basename(policy_specification)
-        self.policy_specification_file_name = policy_specification_file_name[:policy_specification_file_name.rindex(".")]
+        self.policy_specification_file_name = policy_specification_file_name[
+                                              :policy_specification_file_name.rindex(".")]
 
         with open(policy_specification, 'r') as policy_specification_in:
             self.policy = json.load(policy_specification_in)
         self.county_configuration_file_base = self.county_configuration_file
         self.rundirectory_template.insert(2, self.name)
 
-        self.static_penalty, self.dynamic_penalty = self.get_penalty()
+        self.static_penalty, self.dynamic_penalty = self.get_penalty(self.policy)
         self.static_policy_nvals = np.array([len(v) for v in self.static_penalty])
         self.n_weeks = self.get_n_weeks()
         self.target_file = f'epicurve.{"sim2apl" if self.dry_run else "pansim"}.csv'
-        self.evaluator = EOEvaluator(societal_global_impact_weight, dry_run=self.dry_run, policy_specification=self.policy)
+        self.evaluator = EOEvaluator(societal_global_impact_weight, dry_run=self.dry_run,
+                                     policy_specification=self.policy)
 
         simulation_end: datetime = utility.utility.get_expected_end_date(self.county_configuration_file, self.n_steps)
         self.simulation_end = simulation_end.strftime(DATE_FORMAT)
@@ -93,9 +94,9 @@ class EOOptimization(CodeExecution):
         print("Things should be happening now")
         if self.is_master and (self.n_slaves + 1) % self.n_runs != 0:
             print((self.n_slaves + 1) % self.n_runs)
-            raise(Exception(f"The specified number of {self.n_runs} cannot cleanly be distributed across the "
-                            f"{self.n_slaves} + 1 master process. Pick another number or create a pull request "
-                            f"to deal with this case :')"))
+            raise (Exception(f"The specified number of {self.n_runs} cannot cleanly be distributed across the "
+                             f"{self.n_slaves} + 1 master process. Pick another number or create a pull request "
+                             f"to deal with this case :')"))
 
         print("Execute Order Optimization Initialisation complete")
 
@@ -117,12 +118,14 @@ class EOOptimization(CodeExecution):
         data["kappa_scale"] = self.kappa_scale
         return data
 
-    def get_penalty(self) -> (List[FloatArray], float):
+    @staticmethod
+    def get_penalty(policy) -> (List[FloatArray], float):
         """
         Returns: The static and dynamic penalties based on the provided policy specification
         """
-        static_penalty = [np.array([x['penalty'] for x in self.policy['static'][norm]], dtype=float) for norm in sorted(self.policy['static'])]
-        dynamic_penalty = self.policy['dynamic']['StayHomeSick'][1]['penalty']
+        static_penalty = [np.array([x['penalty'] for x in policy['static'][norm]], dtype=float) for norm in
+                          sorted(policy['static'])]
+        dynamic_penalty = policy['dynamic']['StayHomeSick'][1]['penalty']
         return static_penalty, dynamic_penalty
 
     def get_n_weeks(self) -> int:
@@ -190,7 +193,7 @@ class EOOptimization(CodeExecution):
         print(f"Starting optimization with {len(initial_xs)} remaining initial runs")
 
         # Do not simulate the already evaluated runs
-        for x_probes in [initial_xs[i:i+self.n_slaves+1] for i in range(0, len(initial_xs), self.n_slaves+1)]:
+        for x_probes in [initial_xs[i:i + self.n_slaves + 1] for i in range(0, len(initial_xs), self.n_slaves + 1)]:
             self.handle_simultaneous_probes(minimizer, x_probes)
 
         self.write_lines_to_progress_log([f"Finished initial {len(initial_xs)} simulations"])
@@ -301,7 +304,8 @@ class EOOptimization(CodeExecution):
         return exists, path
 
     def check_instructions_finished(self, x_probe: FloatArray, run: int) -> bool:
-        base, progress, done = [os.path.exists(os.path.join(self.instruction_dir, f"run-{run}{t}")) for t in ["", ".progress", ".done"]]
+        base, progress, done = [os.path.exists(os.path.join(self.instruction_dir, f"run-{run}{t}")) for t in
+                                ["", ".progress", ".done"]]
         return (done or (not base and not progress)) and self.simulation_exists(x_probe, run)[0]
 
     def all_runs_finished(self, optimizer: BayesOptMinimizer, x_probes: List[FloatArray]) -> (bool, List[str]):
@@ -341,7 +345,8 @@ class EOOptimization(CodeExecution):
 
         optimizer.set_iota(x_probe, infected)
 
-        self.write_lines_to_progress_log([f"{target}, {infected}, {fitness}, {self.serialize_policy(x_probe)} {x_probe}"])
+        self.write_lines_to_progress_log(
+            [f"{target}, {infected}, {fitness}, {self.serialize_policy(x_probe)} {x_probe}"])
 
     def write_lines_to_progress_log(self, lines: List[str]):
         o = os.path.join(*self.rundirectory_template[:-1], "optimization.progress.log")
@@ -370,7 +375,8 @@ class EOOptimization(CodeExecution):
         with open(os.path.join(self.instruction_dir, f"run-{slave}"), 'w') as instructions_out:
             if len(x_probe.shape) > 1:
                 print("Ok, so our x_probe array is multi-dimensional, now we have a problem:", x_probe.shape)
-            json.dump(dict(x_probe=list(x_probe), run=run, serialized=self.serialize_policy(x_probe)), instructions_out, indent=1)
+            json.dump(dict(x_probe=list(x_probe), run=run, serialized=self.serialize_policy(x_probe)), instructions_out,
+                      indent=1)
             print(f"Created instructions for slave {slave}:", x_probe)
 
     def iterate_as_slave(self):
@@ -378,7 +384,7 @@ class EOOptimization(CodeExecution):
         progress_file = os.path.join(self.instruction_dir, f"run-{self.slave_number}.progress")
         done_file = os.path.join(self.instruction_dir, f"run-{self.slave_number}.done")
 
-        while(True):
+        while (True):
             while not os.path.exists(instruction_file):
                 print(f"Slave {self.slave_number} is waiting for instructions")
                 print(f"Waiting for file {instruction_file} to appear")
@@ -417,7 +423,8 @@ class EOOptimization(CodeExecution):
             file_in.readline()  # Skip header
             for line in file_in:
                 data = line.split("\t")
-                norm_counts[data[0]] = {'affected_agents': int(data[1]), 'affected_duration': int(data[2]), 'total_duration': int(data[2])}
+                norm_counts[data[0]] = {'affected_agents': int(data[1]), 'affected_duration': int(data[2]),
+                                        'total_duration': int(data[2])}
 
         return norm_counts
 
@@ -471,5 +478,3 @@ class EOOptimization(CodeExecution):
         max_int_size = max([len(norm) for norm in self.policy['static'].values()])
         deserialized = [utility.utility.int_to_int_list(_x, max_int_size, self.n_weeks) for _x in bits]
         return deserialized[:-1], deserialized[-1]
-
-

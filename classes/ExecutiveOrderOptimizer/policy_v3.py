@@ -15,7 +15,6 @@ from scipy.stats.qmc import Sobol
 #
 ####################################################################################################################
 from classes.ExecutiveOrderOptimizer.NormSchedule import NormSchedule
-from utility.utility import get_project_root
 
 
 def generate_random_policy(n_weeks: int = 17, init_evals: int = 1):
@@ -81,7 +80,8 @@ def params_to_policy_v3(static_params: List[List[float]], dynamic_param: List[fl
 #
 ####################################################################################################################
 
-def score_from_policy_v3(policy_params: Dict[str, List], infected, weights_file: str = 'weights_default_new.json') -> (float, float):
+def score_from_policy_v3(policy_params: Dict[str, List], infected, weights_file: str = 'weights_default_new.json') -> (
+        float, float):
     """
     Calculate the policy fitness from a Policy V3 Matrix.
     Args:
@@ -194,7 +194,22 @@ def create_policy_specification(norm_weights, norm_counts):
                 norm_key = f'{norm}[{value}]'
             weight = norm_weights[norm_key] if value else 0
             seconds_affected = norm_counts[norm_key]["total_duration"] if value else 0
-            multiplier = .6 if norm == "StayHomeSick" else 1
+
+            multiplier = 1
+            if norm == "StayHomeSick":
+                # Here we are going to do some weird stuff:
+                # For each norm, normally the penalty is active_duration * n_affected * norm_weight
+                # For stay home sick, however, the active duration depends on the actual number of infected agents.
+                # The value we have (at norm_weights[norm_key]["total_duration"]) is the total number of seconds of affected
+                # activities for a single week, assuming EVERY agent gets infected. What we need to do then, is divide this
+                # number by the total population size, which is given by the "affected_agents" key. Moreover, only symptomatically
+                # ill agents will know the norm applies to them, which, on average, is about 60% of infected agents.
+                # For this reason, we then *multiply* again with .6.
+                # So contrary to all other values, this value is per infected agent, instead of total (but this is a
+                # special case already, which is why we put it in the dynamic part of the policy specification)
+                n_total_agents = norm_counts[norm_key]["affected_agents"]
+                multiplier = .6 / n_total_agents
+
             penalties.append((weight * seconds_affected * multiplier, weight, seconds_affected))
 
         values = protocol[norm]['values']
@@ -234,7 +249,8 @@ def load_affected_agents(affected_agents_file: str) -> Dict[str, Dict[str, int]]
         file_in.readline()  # Skip header
         for line in file_in:
             data = line.split("\t")
-            norm_counts[data[0]] = {'affected_agents': int(data[1]), 'affected_duration': int(data[2]), 'total_duration': int(data[2])}
+            norm_counts[data[0]] = {'affected_agents': int(data[1]), 'affected_duration': int(data[2]),
+                                    'total_duration': int(data[2])}
 
     return norm_counts
 

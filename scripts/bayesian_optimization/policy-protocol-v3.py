@@ -30,7 +30,7 @@ for norm, elements in protocol.items():
     for el in elements:
         print("\t", el)
 
-with open(get_project_root("..", "bayesian-optimization-cost", "policy-protocol-v3.json"), 'w') as json_out:
+with open(get_project_root("..", "bayesian_optimization-cost", "policy-protocol-v3.json"), 'w') as json_out:
     json.dump(protocol, json_out, indent=4)
 
 """
@@ -46,7 +46,7 @@ ns2 = NormSchedule(
 )
 p3 = ns2.get_protocol_v3()
 ns3 = NormSchedule.from_protocol_v3(p3, '2020-06-28')
-with open(get_project_root("..", "bayesian-optimization-cost", "example-policy.v3.json"), 'w') as json_out:
+with open(get_project_root("..", "bayesian_optimization-cost", "example-policy.v3.json"), 'w') as json_out:
     json.dump(p3, json_out, indent=4)
 
 for norm in p3:

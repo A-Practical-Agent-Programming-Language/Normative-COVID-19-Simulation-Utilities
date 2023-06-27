@@ -12,13 +12,14 @@ from matplotlib.ticker import FixedLocator
 
 try:
     from .NormService import norms, Norm, days_between_strings, split_param_groups, DATE_FORMAT, data_point_from_date, \
-    date_from_data_point, key_to_norm_and_params, norms_to_new_name_map
+        date_from_data_point, key_to_norm_and_params, norms_to_new_name_map
 except ImportError:
     from NormService import norms, Norm, days_between_strings, split_param_groups, DATE_FORMAT, data_point_from_date, \
         date_from_data_point, key_to_norm_and_params, norms_to_new_name_map
 
 NormByDate = Dict[str, Dict[str, List[Norm]]]
 NormEvents = Dict[str, List[Norm]]
+
 
 # This class converts the output of the Bayesian optimization (i.e., a vector of start and end dates for each
 # EO) to a norm schedule, and can write that schedule to a file that can be read by the simulation framework
@@ -52,7 +53,8 @@ class NormSchedule(object):
 
         with open(norm_schedule_file, 'r') as norms_in:
             for line in norms_in:
-                m = re.findall(r'(2020-\d{2}-\d{2}),(\w+),(2020-\d{2}-\d{2})?,("?)([\w\d>, %]*?)?\4,("?).*\6(?:,("?).*\7,)?', line)
+                m = re.findall(
+                    r'(2020-\d{2}-\d{2}),(\w+),(2020-\d{2}-\d{2})?,("?)([\w\d>, %]*?)?\4,("?).*\6(?:,("?).*\7,)?', line)
                 if len(m):
                     m = m[0]
                     start, name, end, _, params, _, _ = m
@@ -76,7 +78,7 @@ class NormSchedule(object):
             new_list = list()
             norms = sorted(ns.grouped_norms[resolving], key=lambda x: (x.start, x.end))
             for i in range(len(norms)):
-                for j in range(i+1, len(norms)):
+                for j in range(i + 1, len(norms)):
                     first_norm = ns.grouped_norms[resolving][i]
                     second_norm = ns.grouped_norms[resolving][j]
                     if first_norm.end > second_norm.start:
@@ -84,7 +86,9 @@ class NormSchedule(object):
                         first_norm.end = second_norm.start
                         second_norm.params = first_norm.params + ";" + second_norm.params
                         if date_from_data_point(previous_end) > date_from_data_point(second_norm.end):
-                            new_list.append(Norm(first_norm.name, second_norm.end, previous_end - second_norm.end, first_norm.index, first_norm.params, first_norm.paper_params))
+                            new_list.append(
+                                Norm(first_norm.name, second_norm.end, previous_end - second_norm.end, first_norm.index,
+                                     first_norm.params, first_norm.paper_params))
                     new_list.append(first_norm)
             if len(ns.grouped_norms[resolving]):
                 new_list.append(ns.grouped_norms[resolving][-1])
@@ -98,7 +102,8 @@ class NormSchedule(object):
         return ns
 
     @staticmethod
-    def from_protocol_v3(protocol_v3_matrix: Dict[str, List[bool or str]], last_simulation_date: str or None = None, is_weeks=True):
+    def from_protocol_v3(protocol_v3_matrix: Dict[str, List[bool or str]], last_simulation_date: str or None = None,
+                         is_weeks=True):
         """
         Convert a V3 protocol to a NormSchedule object.
         The V3 protocol is a matrix, where each key is a norm, and each value is a list,
@@ -127,18 +132,18 @@ class NormSchedule(object):
             start = -1
             for i, (a, b) in enumerate(zip(events[:-1], events[1:])):
                 if a is not b and a is not False:
-                    event = Norm(norm, start+1, i-start, 0, a if a is not True else None, "")
+                    event = Norm(norm, start + 1, i - start, 0, a if a is not True else None, "")
                     event.paper_params = norms_to_new_name_map[event.as_key()][1]
                     ns.grouped_norms[norm].append(event)
                 if a is not b:
                     start = i
             if events[-1] is not False:
-                event = Norm(norm, start+1, len(events)-start-1, 0, events[-1] if events[-1] is not True else None, "")
+                event = Norm(norm, start + 1, len(events) - start - 1, 0,
+                             events[-1] if events[-1] is not True else None, "")
                 event.paper_params = norms_to_new_name_map[event.as_key()][1]
                 ns.grouped_norms[norm].append(event)
         ns.norm_events = ns.__create_event_list()
         return ns
-
 
     @staticmethod
     def bayesian_output_to_grouped_norms(x: Dict[str, int]) -> Dict[str, List[Norm]]:
@@ -177,7 +182,8 @@ class NormSchedule(object):
                     overlapping[0] = norm2
                 else:
                     if norm1.end > norm2.end:
-                        norm3 = Norm(norm1.name, norm2.end, norm1.end - norm2.end, norm1.index, norm1.params, norm1.paper_params)
+                        norm3 = Norm(norm1.name, norm2.end, norm1.end - norm2.end, norm1.index, norm1.params,
+                                     norm1.paper_params)
                         overlapping.append(norm3)
                     norm1.end = norm2.start
                     if norm1.start == norm1.end:
@@ -219,7 +225,7 @@ class NormSchedule(object):
             overlap.append(aggregator)
         return overlap
 
-    def get_active_duration(self, norm_string: str):
+    def get_active_days(self, norm_string: str):
         norm_name, params = key_to_norm_and_params(norm_string)
         params = params if params else None
         active_duration = 0
@@ -259,7 +265,7 @@ class NormSchedule(object):
         matrix = defaultdict(lambda: [False] * max_week)
         processed_norms = list()
         for norm_key in norms_to_new_name_map:
-            norm , _ = key_to_norm_and_params(norm_key)
+            norm, _ = key_to_norm_and_params(norm_key)
             if norm in processed_norms:
                 continue
             _ = matrix[norm]  # Ensure presence
@@ -295,7 +301,8 @@ class NormSchedule(object):
 
         nested_norm_list = list()
         for norm in norm_map:
-            sorted_params = sorted(norm_map[norm], key=lambda x: matrix[x[0]].index(True) if True in matrix[x[0]] else -1, reverse=True)
+            sorted_params = sorted(norm_map[norm],
+                                   key=lambda x: matrix[x[0]].index(True) if True in matrix[x[0]] else -1, reverse=True)
             nested_norm_list.append((norm, sorted_params))
 
         s = sorted(
@@ -343,10 +350,11 @@ class NormSchedule(object):
                         if patch:
                             start = j
                         else:
-                            ax.plot([start*width, j * width], [y_pos, y_pos], marker='o', color=color)
-                        interventions[j*width] = y_pos
+                            ax.plot([start * width, j * width], [y_pos, y_pos], marker='o', color=color)
+                        interventions[j * width] = y_pos
                         if not param_added and norm_param_combo[1]:
-                            plt.text(j * width - 0.3 * len(x_ticks) / (len(norms) + 1), y_pos, norm_param_combo[1], ha='right', va='center', fontdict=dict(size=7))
+                            plt.text(j * width - 0.3 * len(x_ticks) / (len(norms) + 1), y_pos, norm_param_combo[1],
+                                     ha='right', va='center', fontdict=dict(size=7))
                         param_added = True
                     last_state = patch
                 if patch:
@@ -422,7 +430,8 @@ class NormSchedule(object):
         return norm.name + (norm.params if norm.params is not None else '')
 
     @staticmethod
-    def data_point_to_tikz_x_coordinate(data_point: int, min_data_point: int, max_data_point: int, max_x_coordinate: int):
+    def data_point_to_tikz_x_coordinate(data_point: int, min_data_point: int, max_data_point: int,
+                                        max_x_coordinate: int):
         return (data_point - min_data_point) * (max_x_coordinate / (max_data_point - min_data_point))
 
     def to_tikz(self, output_file=None):
@@ -441,7 +450,7 @@ class NormSchedule(object):
         outf.write("\\begin{figure}\n\\resizebox{\linewidth}{!}{%\n\\begin{tikzpicture}\n")
         outf.write("\\tikzstyle{node_style}=[fill=black, draw=black, shape=circle, scale=.3]\n")
         for i, (eo, norm_list) in enumerate(norms.items()):
-            outf.write(f"% EO{i+1}")
+            outf.write(f"% EO{i + 1}")
             found_norms = defaultdict(lambda: defaultdict(list))
             for norm in norm_list:
                 for instantiated_norm in self.grouped_norms[norm[1]]:
@@ -462,9 +471,10 @@ class NormSchedule(object):
 
                     # pos_start = (17 - min_data_point) / 10 * (found_norm.start - min_data_point)
                     # pos_end = (17-min_data_point)/10*(norm_end-min_data_point)
-                    pos_start = self.data_point_to_tikz_x_coordinate(found_norm.start, min_data_point, max_data_point, max_tickz_x)
-                    pos_end = self.data_point_to_tikz_x_coordinate(norm_end, min_data_point, max_data_point, max_tickz_x)
-
+                    pos_start = self.data_point_to_tikz_x_coordinate(found_norm.start, min_data_point, max_data_point,
+                                                                     max_tickz_x)
+                    pos_end = self.data_point_to_tikz_x_coordinate(norm_end, min_data_point, max_data_point,
+                                                                   max_tickz_x)
 
                     outf.write("% {0}-{1}  ({2}  -  {3})\n".format(
                         found_norm.start, found_norm.end,
@@ -489,18 +499,20 @@ class NormSchedule(object):
                     node += 1
                     line += 1
                     outf.write(f"\\draw[{color}] ({node - 2}) to ({node - 1});")
-                    last_line_for_event[pos_start] = (node-2, found_norm.start)
-                    last_line_for_event[pos_end] = (node-1, found_norm.end)
+                    last_line_for_event[pos_start] = (node - 2, found_norm.start)
+                    last_line_for_event[pos_end] = (node - 1, found_norm.end)
                     norm_name_list = list()
-                    print(f"EO{i+1}  {date_from_data_point(start)}  -- {date_from_data_point(end)}  ({start}-{end}) plotted at ({pos_start},{pos_end}). Max data point is {max_data_point}")
+                    print(
+                        f"EO{i + 1}  {date_from_data_point(start)}  -- {date_from_data_point(end)}  ({start}-{end}) plotted at ({pos_start},{pos_end}). Max data point is {max_data_point}")
                     for found_norm_obj in found_norms_for_this_end:
                         if self.norm_ident(found_norm_obj) not in skip_norm_line:
                             params = f"({found_norm_obj.paper_params})" if found_norm_obj.paper_params is not None else ''
                             norm_name_list.append(f"n_{{{found_norm_obj.index}}}{params}")
 
                     if len(norm_name_list):
-                        EO_name = f"EO$_{{{i+1}}}:" if j == 0 else "\ \ \ \ \ \ \ $"
-                        outf.write(f"\\node[draw=none,style={{anchor=west, inner sep=0pt}}] at (-3,{-1 * (line-1) * .3:.2}) {{{EO_name} {','.join(norm_name_list)}$}};\n")
+                        EO_name = f"EO$_{{{i + 1}}}:" if j == 0 else "\ \ \ \ \ \ \ $"
+                        outf.write(
+                            f"\\node[draw=none,style={{anchor=west, inner sep=0pt}}] at (-3,{-1 * (line - 1) * .3:.2}) {{{EO_name} {','.join(norm_name_list)}$}};\n")
                         written_EO = True
                     else:
                         print("Not printing EO", i, found_norms_for_this_end)
@@ -512,7 +524,8 @@ class NormSchedule(object):
                     norm_name_list.append(f"n_{{{found_norm_obj[0]}}}{params}")
                 EO_name = f"EO$_{{{i + 1}}}:"
                 print(EO_name, norm_name_list)
-                outf.write(f"\n\\node[draw=none,style={{anchor=west, inner sep=0pt}},color=gray] at (-3,{-1 * line * .3:.2}) {{{EO_name} {','.join(norm_name_list)}$}};\n")
+                outf.write(
+                    f"\n\\node[draw=none,style={{anchor=west, inner sep=0pt}},color=gray] at (-3,{-1 * line * .3:.2}) {{{EO_name} {','.join(norm_name_list)}$}};\n")
                 line += 1
             outf.write("\n")
 
@@ -521,11 +534,14 @@ class NormSchedule(object):
             if data_point <= max_data_point:
                 color, date_str = self.convert_date(data_point)
                 outf.write(f"\draw [dashed] ({node}) -- ({x_pos},0.3);\n")
-                outf.write(f"\\node [draw=none,style={{anchor=east,inner sep=0pt}}] at ({x_pos}, 0.48) {{{date_str}}};\n")
+                outf.write(
+                    f"\\node [draw=none,style={{anchor=east,inner sep=0pt}}] at ({x_pos}, 0.48) {{{date_str}}};\n")
             else:
-                print("Skipping", x_pos, node, data_point, "because larger than", max_data_point, data_point - max_data_point)
+                print("Skipping", x_pos, node, data_point, "because larger than", max_data_point,
+                      data_point - max_data_point)
 
-        outf.write("\\end{tikzpicture}\n}\n\caption{Timeline of the best found policy}\n\label{fig:eos-after-optimization}\n\end{figure}")
+        outf.write(
+            "\\end{tikzpicture}\n}\n\caption{Timeline of the best found policy}\n\label{fig:eos-after-optimization}\n\end{figure}")
         if output_file is not None:
             outf.close()
 
@@ -544,7 +560,6 @@ class NormSchedule(object):
             self.months_seen.append(month)
 
         return repl[month][1], date_str
-
 
 
 def test_norm_resolution():
@@ -573,7 +588,9 @@ def test_norm_schedule():
 if __name__ == "__main__":
     # test_norm_resolution()
     # test_norm_schedule()
-    ns = NormSchedule.from_norm_schedule("/home/jan/dev/university/2apl/simulation/sim2apl-episimpledemics/src/main/resources/norm-schedule.csv", "2020-06-28")
+    ns = NormSchedule.from_norm_schedule(
+        "/home/jan/dev/university/2apl/simulation/sim2apl-episimpledemics/src/main/resources/norm-schedule.csv",
+        "2020-06-28")
     NormSchedule(
         # {  # DEFAULT_WEIGHTS
         #     'EO0_duration': 5, 'EO0_start': 16,
@@ -609,14 +626,13 @@ if __name__ == "__main__":
         #  'EO3_duration': 2, 'EO3_start': 9, 'EO4_duration': 5, 'EO4_start': 8, 'EO5_duration': 2, 'EO5_start': 1,
         #  'EO6_duration': 6, 'EO6_start': 7, 'EO7_duration': 12, 'EO7_start': 17, 'EO8_duration': 11, 'EO8_start': 2},
 
-        { # 200 explore, 50 exploit
+        {  # 200 explore, 50 exploit
             'EO0_duration': 2, 'EO0_start': 9, 'EO1_duration': 11, 'EO1_start': 9, 'EO2_duration': 9, 'EO2_start': 2,
-         'EO3_duration': 2, 'EO3_start': 9, 'EO4_duration': 5, 'EO4_start': 8, 'EO5_duration': 2, 'EO5_start': 1,
-         'EO6_duration': 6, 'EO6_start': 7, 'EO7_duration': 12, 'EO7_start': 17, 'EO8_duration': 11, 'EO8_start': 2},
+            'EO3_duration': 2, 'EO3_start': 9, 'EO4_duration': 5, 'EO4_start': 8, 'EO5_duration': 2, 'EO5_start': 1,
+            'EO6_duration': 6, 'EO6_start': 7, 'EO7_duration': 12, 'EO7_start': 17, 'EO8_duration': 11, 'EO8_start': 2},
 
-    "2020-06-28"
+        "2020-06-28"
     )
     # ns.to_tikz("../../test-picture/test-picture.tex")
     # ns.prettyprint(True)
     ns.plot_as_timeline(True)
-
