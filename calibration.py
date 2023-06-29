@@ -94,7 +94,7 @@ from utility.utility import *
     type=bool,
     default=False,
     help="If true, this code will leave instructions for other compute nodes to run a specific configuration, instead"
-    "of starting the calibration run itself, except if the run is the nth number with n = --number-of-runs",
+         "of starting the calibration run itself, except if the run is the nth number with n = --number-of-runs",
 )
 @click.option(
     "--n-slaves",
@@ -115,6 +115,13 @@ from utility.utility import *
     type=bool,
     default=False,
     help="A dry-run simulation does not start the PanSim process and can be helpful for quick verification of the process",
+    required=False
+)
+@click.option(
+    "--seed",
+    type=int,
+    default=random.randrange(sys.maxsize),
+    help="A number from which the random object will be seeded",
     required=False
 )
 @click.pass_context
@@ -146,7 +153,7 @@ def start(ctx, **kwargs):
     If changing the county, make sure to update the config files.
     """
     test_code_available(kwargs["java"])
-    seed = random.randrange(sys.maxsize)
+    seed = kwargs["seed"]
     county_configuration = load_toml_configuration(kwargs["county_configuration"])
     county_configuration["simulation"]["seed"] = seed
     if "number_of_steps" in kwargs and "dry_run" in kwargs and kwargs["dry_run"]:
@@ -217,8 +224,8 @@ def print_dict(dct, ident=0):
     type=int,
     default=7,
     help="Specify the size of the sliding window with which the mobility index will be smoothed when calculating the "
-    "RMSE. Note that for the baseline, the actual size of the window used may be smaller, because some "
-    "dates are missing",
+         "RMSE. Note that for the baseline, the actual size of the window used may be smaller, because some "
+         "dates are missing",
 )
 @click.pass_context
 def behavior(ctx, mobility_index_file, tick_averages_file, sliding_window_size):
@@ -397,13 +404,13 @@ def optimization(
 )
 @click.pass_context
 def disease(
-    ctx,
-    mode_liberal,
-    mode_conservative,
-    fatigue,
-    fatigue_start,
-    case_data_file,
-    epicurve_file,
+        ctx,
+        mode_liberal,
+        mode_conservative,
+        fatigue,
+        fatigue_start,
+        case_data_file,
+        epicurve_file,
 ):
     click.echo("Disease calibration started")
     args = ctx.obj["args"]
@@ -464,13 +471,13 @@ def disease(
 )
 @click.pass_context
 def disease_initial_guess_finder(
-    ctx,
-    mode_liberal,
-    mode_conservative,
-    fatigue,
-    fatigue_start,
-    case_data_file,
-    epicurve_file,
+        ctx,
+        mode_liberal,
+        mode_conservative,
+        fatigue,
+        fatigue_start,
+        case_data_file,
+        epicurve_file,
 ):
     click.echo("Disease calibration started")
     args = ctx.obj["args"]
@@ -505,10 +512,11 @@ def disease_initial_guess_finder(
     for i in range(50):
         dc.calibrate([symp / (2 ** i), asymp / (2 ** i)])
 
+
 @start.command(
     name="simplerepeat",
     help="Run the experiment n_runs number of times with a fixed disease model and behavior parameters, "
-    "and exit after finishing",
+         "and exit after finishing",
 )
 @click.option(
     "--mode-liberal",
@@ -621,6 +629,7 @@ def run_norm_schedules(ctx, mode_liberal, mode_conservative, fatigue, fatigue_st
     rip = RunInitialPolicies(norm_schedules, **args)
     rip.run_simulations()
 
+
 @start.command(
     name="sensitivity",
     help="Perform simulation with the most extreme parameters to test sensitivity to reasoning",
@@ -643,8 +652,8 @@ def run_norm_schedules(ctx, mode_liberal, mode_conservative, fatigue, fatigue_st
     type=int,
     default=7,
     help="Specify the size of the sliding window with which the mobility index will be smoothed when calculating the "
-    "RMSE. Note that for the baseline, the actual size of the window used may be smaller, because some "
-    "dates are missing",
+         "RMSE. Note that for the baseline, the actual size of the window used may be smaller, because some "
+         "dates are missing",
 )
 @click.pass_context
 def sensitivity(ctx, mobility_index_file, tick_averages_file, sliding_window_size):
@@ -665,9 +674,9 @@ def sensitivity(ctx, mobility_index_file, tick_averages_file, sliding_window_siz
 @start.command(
     name="slave",
     help="Run a slave to another calibration process. At least one process with --is-master set to true should be provided,"
-    "and exactly N slave processes should be started, with N being one less than the --number-of-runs specified to the"
-    "master process. "
-    "The --name and --output-dir MUST BE THE SAME on all these runs",
+         "and exactly N slave processes should be started, with N being one less than the --number-of-runs specified to the"
+         "master process. "
+         "The --name and --output-dir MUST BE THE SAME on all these runs",
 )
 @click.option(
     "--run", type=int, required=True, help="The run number this node should execute"
@@ -811,7 +820,7 @@ def test_trust_discount(ctx, mode_liberal, mode_conservative):
 @click.command(
     name="behavior_rmse",
     help="Run the RMSE for behavior (i.e. mobility) on a simulation output directory, or a directory containing"
-    "multiple simulation output directories",
+         "multiple simulation output directories",
 )
 @click.option(
     "--simulation-output-dir",
@@ -832,7 +841,7 @@ def test_trust_discount(ctx, mode_liberal, mode_conservative):
     "-a",
     type=bool,
     help="If this flag is set to true, the average score of multiple runs will be used. Otherwise, the RMSE will be"
-    "calculated over all participating runs",
+         "calculated over all participating runs",
     default=False,
     required=False,
 )
@@ -854,16 +863,16 @@ def test_trust_discount(ctx, mode_liberal, mode_conservative):
     type=int,
     default=7,
     help="Specify the size of the sliding window with which the mobility index will be smoothed when calculating the "
-    "RMSE. Note that for the baseline, the actual size of the window used may be smaller, because some "
-    "dates are missing",
+         "RMSE. Note that for the baseline, the actual size of the window used may be smaller, because some "
+         "dates are missing",
 )
 def behavior_rmse(
-    simulation_output_dir,
-    county_configuration,
-    mobility_index_file,
-    tick_averages_file,
-    sliding_window_size,
-    average_runs,
+        simulation_output_dir,
+        county_configuration,
+        mobility_index_file,
+        tick_averages_file,
+        sliding_window_size,
+        average_runs,
 ):
     MobilityRMSEOnBacklog(
         county_configuration,
@@ -878,7 +887,7 @@ def behavior_rmse(
 @click.command(
     name="disease_rmse",
     help="Run the RMSE for disease model (i.e. epicurve) on a simulation output directory, or a directory containing"
-    "multiple simulation output directories",
+         "multiple simulation output directories",
 )
 @click.option(
     "--simulation-output-dir",
@@ -899,7 +908,7 @@ def behavior_rmse(
     "-a",
     type=bool,
     help="If this flag is set to true, the average score of multiple runs will be used. Otherwise, the RMSE will be"
-    "calculated over all participating runs",
+         "calculated over all participating runs",
     default=False,
     required=False,
 )
@@ -915,11 +924,11 @@ def behavior_rmse(
     default="epicurve.sim2apl.csv",
 )
 def disease_rmse(
-    simulation_output_dir,
-    county_configuration,
-    average_runs,
-    case_data_file,
-    default_epicurve_file_name,
+        simulation_output_dir,
+        county_configuration,
+        average_runs,
+        case_data_file,
+        default_epicurve_file_name,
 ):
     DiseaseRMSEOnBacklog(
         county_configuration,

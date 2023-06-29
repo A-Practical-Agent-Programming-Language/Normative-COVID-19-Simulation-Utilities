@@ -233,7 +233,7 @@ class EOOptimization(CodeExecution):
 
     def handle_simultaneous_probes(self, optimizer: BayesOptMinimizer, x_probes: List[FloatArray]):
         for x_probe, slave in zip(x_probes[1:], range(self.n_slaves)):
-            if not self.simulation_exists(x_probes[slave], run=0)[0]:
+            if not self.simulation_exists(x_probe, run=0)[0]:
                 print(f"Leaving instructions to simulate {self.serialize_policy(x_probe)}")
                 self.leave_instructions(slave, x_probe, run=0)
             else:
